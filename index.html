@@ -1,0 +1,2125 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solenoid Review Bench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a three-pane bench (protein list, structure, call) that stacks to one column on narrow screens. */
+:root {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --fg: #16202a;
+  --muted: #5b6875;
+  --line: #d9dee4;
+  --accent: #0b6e6e;
+  --accent-soft: #dcefee;
+  --viewer-bg: #ffffff;
+  --yes: #1f7a4d;
+  --yes-soft: #dff2e7;
+  --no: #5b6875;
+  --no-soft: #e6eaee;
+  --unsure: #a15c00;
+  --unsure-soft: #fbeedb;
+  --warn-soft: #fff4e0;
+  --pl-vhigh: #0053d6;
+  --pl-high: #65cbf3;
+  --pl-low: #ffdb13;
+  --pl-vlow: #ff7d45;
+  --call-primary: #6fe3ff;
+  --call-further: #c6f36d;
+  --unit-a: #e07b39;
+  --unit-b: #2f6fde;
+  --unit-c: #c2418f;
+  --unit-d: #1e9e8f;
+  --gap-res: #7a8590;
+  --outside-res: #c4cbd2;
+  --region-primary: #0f8b8d;
+  --region-further: #7a9a01;
+  --helix: #c2418f;
+  --strand: #d98c10;
+  --state: #2f6fde;
+  --hit-pfam: #6b4fbb;
+  --hit-cdd: #5f7488;
+  --hit-foldseek: #b0413e;
+  --hit-ink: #ffffff;
+  --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1418; --panel: #161d23; --fg: #e3e9ee; --muted: #93a1ad; --line: #2a343d;
+    --accent: #4fc1bd; --accent-soft: #163536; --viewer-bg: #11171c;
+    --yes: #5fcf93; --yes-soft: #17342a; --no: #a3b1bd; --no-soft: #242e37;
+    --unsure: #f0a94a; --unsure-soft: #3a2a12; --warn-soft: #3a2a12;
+    --region-primary: #4fc1bd; --region-further: #b5d334; --helix: #e07bb5; --strand: #f0b44a; --state: #7aa7ff;
+    --hit-pfam: #a98cf0; --hit-cdd: #9fb3c6; --hit-foldseek: #f07a6c; --hit-ink: #10161b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1418; --panel: #161d23; --fg: #e3e9ee; --muted: #93a1ad; --line: #2a343d;
+  --accent: #4fc1bd; --accent-soft: #163536; --viewer-bg: #11171c;
+  --yes: #5fcf93; --yes-soft: #17342a; --no: #a3b1bd; --no-soft: #242e37;
+  --unsure: #f0a94a; --unsure-soft: #3a2a12; --warn-soft: #3a2a12;
+  --region-primary: #4fc1bd; --region-further: #b5d334; --helix: #e07bb5; --strand: #f0b44a; --state: #7aa7ff;
+  --hit-pfam: #a98cf0; --hit-cdd: #9fb3c6; --hit-foldseek: #f07a6c; --hit-ink: #10161b;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 24px;
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 12px; }
+header.top h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.sets { display: flex; gap: 6px; flex-wrap: wrap; }
+.set-tab { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 12px; display: flex; gap: 8px; align-items: baseline; }
+.set-tab[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.set-tab .count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.progress { display: flex; align-items: center; gap: 8px; min-width: 200px; flex: 1; max-width: 360px; }
+.bar { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; display: flex; }
+.bar span { height: 100%; }
+.bar .y { background: var(--yes); } .bar .n { background: var(--no); } .bar .u { background: var(--unsure); }
+.progress .mono { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.top-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 12px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+
+.notice { background: var(--warn-soft); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; }
+.about { color: var(--muted); margin: -4px 0 12px; max-width: 90ch; }
+
+.bench { display: grid; grid-template-columns: 200px minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .bench { grid-template-columns: 170px minmax(0, 1fr); } .call { grid-column: 1 / -1; } }
+@media (max-width: 720px) { .bench { grid-template-columns: minmax(0, 1fr); } .list { order: 3; } .call { order: 2; } }
+
+.list { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; max-height: calc(100vh - 140px); overflow-y: auto; }
+.list ol { list-style: none; margin: 0; padding: 4px; }
+.list li button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; text-align: left; border: 0; background: transparent; border-radius: 5px; padding: 6px 8px; }
+.list li button:hover { background: var(--bg); }
+.list li button[aria-current="true"] { background: var(--accent-soft); }
+.list .name { font-family: var(--mono); font-size: 13px; }
+.list .len { font-family: var(--mono); font-size: 11px; color: var(--muted); grid-column: 1; }
+.pill { grid-row: 1 / span 2; grid-column: 2; font-size: 11px; font-weight: 500; border-radius: 10px; padding: 1px 8px; border: 1px solid var(--line); color: var(--muted); }
+.pill.yes { background: var(--yes-soft); color: var(--yes); border-color: transparent; }
+.pill.no { background: var(--no-soft); color: var(--no); border-color: transparent; }
+.pill.unsure { background: var(--unsure-soft); color: var(--unsure); border-color: transparent; }
+
+.stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.viewer-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.viewer-head h2 { margin: 0; font-size: 15px; font-weight: 600; font-family: var(--mono); }
+.readout { font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 22ch; }
+.viewer-tools { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.viewer-tools .btn { padding: 4px 10px; font-size: 13px; }
+.viewer-tools .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+#viewer { position: relative; width: 100%; height: clamp(340px, 62vh, 760px); background: var(--viewer-bg); border-radius: 0 0 8px 8px; overflow: hidden; }
+.viewer-msg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); pointer-events: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 12px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+
+.attention { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.attention-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: baseline; }
+.attention h3 { margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.attention label { font-size: 12px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.att-cols { display: grid; grid-template-columns: 1fr 1fr; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.att-cols span:last-child { padding-left: 6px; }
+.att-frame { position: relative; }
+.att-frame img { width: 100%; max-width: 100%; height: auto; border-radius: 4px; display: block; }
+.att-frame svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.att-toggles { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.regions { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.regions li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.regions .swatch { width: 18px; height: 0; border-top: 2px solid var(--call-primary); display: inline-block; transform: translateY(-3px); }
+.regions .swatch.further { border-top-style: dashed; border-top-color: var(--call-further); }
+.regions .swatch.hit { border-top: 0; width: 14px; height: 8px; transform: none; }
+.regions .swatch.pfam { background: var(--hit-pfam); }
+.regions .swatch.cdd { background: var(--hit-cdd); }
+.regions .swatch.foldseek { background: var(--hit-foldseek); }
+.regions a { color: var(--accent); }
+.regions .meta { color: var(--muted); font-size: 12px; }
+.mode { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.mode button { border: 0; background: var(--panel); padding: 4px 10px; font-size: 13px; }
+.mode button + button { border-left: 1px solid var(--line); }
+.mode button[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg); }
+.att-hidden { border: 1px dashed var(--line); border-radius: 6px; padding: 18px; color: var(--muted); text-align: center; }
+
+.call { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 14px; }
+.call h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 9px 6px; font-weight: 500; }
+.seg button kbd { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: 4px; }
+.seg button[aria-pressed="true"][data-v="yes"] { background: var(--yes-soft); border-color: var(--yes); color: var(--yes); }
+.seg button[aria-pressed="true"][data-v="no"] { background: var(--no-soft); border-color: var(--no); color: var(--fg); }
+.seg button[aria-pressed="true"][data-v="unsure"] { background: var(--unsure-soft); border-color: var(--unsure); color: var(--unsure); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { border: 1px solid var(--line); background: var(--panel); border-radius: 14px; padding: 4px 10px; font-size: 13px; }
+.chips button kbd { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-left: 3px; }
+.chips button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.field { display: flex; gap: 6px; }
+.field input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 7px 9px; font-family: var(--mono); }
+.field .btn { font-size: 13px; padding: 6px 10px; white-space: nowrap; }
+.field .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+textarea { width: 100%; min-height: 96px; resize: vertical; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 8px 9px; box-sizing: border-box; }
+.nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.nav .btn { flex: 1; }
+.status { font-size: 12px; color: var(--muted); min-height: 1.4em; }
+.status.err { color: var(--unsure); }
+.keys { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
+.keys kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.hits-panel { border-top: 1px solid var(--line); padding-top: 10px; }
+.hits-list { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.hits-list li { display: flex; align-items: flex-start; gap: 2px; }
+.hits-list button { flex: 1; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; text-align: left; background: none; border: 0; border-radius: 5px; padding: 5px 6px; cursor: pointer; color: var(--fg); font: inherit; font-size: 13px; }
+.hits-list button:hover, .hits-list button[aria-pressed="true"] { background: var(--accent-soft); }
+.hits-list button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.hits-list .tag { grid-row: span 2; align-self: start; margin-top: 1px; padding: 0 5px; border-radius: 3px; font-family: var(--mono); font-size: 10px; line-height: 16px; color: var(--hit-ink); }
+.hits-list .tag.pfam { background: var(--hit-pfam); }
+.hits-list .tag.cdd { background: var(--hit-cdd); }
+.hits-list .tag.foldseek { background: var(--hit-foldseek); }
+.hits-list .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hits-list .sub { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.hits-list a { padding: 6px 2px; font-size: 11px; color: var(--accent); white-space: nowrap; }
+.hits-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
+.tsv { width: 100%; min-height: 160px; font-family: var(--mono); font-size: 12px; }
+
+/* Giants tab: a protein track above the viewer; review-only controls hide, giant-only controls show. */
+body:not([data-mode="giants"]) [data-giant-only] { display: none !important; }
+body[data-mode="giants"] [data-review-only] { display: none !important; }
+.track-card { padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+.track-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.track-head h3 { margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.track-tools { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.track-tools .btn { padding: 3px 9px; font-size: 13px; }
+.track-readout { font-family: var(--mono); font-size: 12px; color: var(--muted); min-height: 1.5em; overflow-wrap: anywhere; }
+#track { width: 100%; height: 314px; display: block; touch-action: pan-y; cursor: crosshair; }
+#track.dragging { cursor: grabbing; }
+.giant-meta { font-size: 12px; color: var(--muted); }
+.list-head { position: sticky; top: 0; z-index: 1; background: var(--panel); border-bottom: 1px solid var(--line); padding: 8px 8px 6px; display: flex; flex-direction: column; gap: 4px; }
+.list-head[hidden] { display: none; }
+.list-head p { margin: 0; font-size: 11px; color: var(--muted); }
+.list li button.ranked { grid-template-columns: minmax(0, 1fr) auto; }
+.list .ranked .name, .list .ranked .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scales { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.scales button { border: 0; background: var(--panel); padding: 4px 9px; font-size: 13px; font-family: var(--mono); }
+.scales button + button { border-left: 1px solid var(--line); }
+.scales button[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg); }
+.scales button:disabled { color: var(--line); cursor: default; }
+.step { display: inline-flex; gap: 4px; }
+.step .btn { padding: 4px 9px; font-size: 13px; }
+.att-canvas { width: 100%; height: auto; display: block; border-radius: 4px; background: #000004; }
+.list .sub { font-family: var(--mono); font-size: 11px; color: var(--muted); grid-column: 1; }
+.hint.inline { margin: 0; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <h1>Solenoid Review Bench</h1>
+  <div class="sets" role="tablist" id="sets"></div>
+  <div class="progress" id="progress" aria-live="polite"></div>
+  <div class="top-actions">
+    <button class="btn" id="theme" type="button">Light mode</button>
+    <button class="btn" id="next-unlabeled" type="button" data-review-only>Next unlabeled</button>
+    <button class="btn" id="copy-tsv" type="button">Copy labels (TSV)</button>
+  </div>
+</header>
+<div class="notice" id="notice" hidden></div>
+<p class="about" id="about"></p>
+<div id="tsv-wrap" hidden><textarea class="tsv" id="tsv" readonly aria-label="Labels as TSV"></textarea></div>
+
+<main class="bench">
+  <nav class="list" aria-label="Proteins">
+    <div class="list-head" id="list-head" data-giant-only hidden>
+      <div class="mode" role="group" aria-label="Order of the giants list">
+        <button type="button" id="list-ranked" aria-pressed="true">By score</button>
+        <button type="button" id="list-proteins" aria-pressed="false">Proteins</button>
+      </div>
+      <p id="list-caption"></p>
+    </div>
+    <ol id="list"></ol>
+  </nav>
+
+  <section class="stage">
+    <div class="card">
+      <div class="viewer-head">
+        <h2 id="current-name">Loading proteins…</h2>
+        <span class="readout" id="readout">Hover a residue for its number and pLDDT</span>
+        <div class="viewer-tools">
+          <div class="scales" role="group" aria-label="Model window length (aa)" id="scales" data-giant-only></div>
+          <div class="step" data-giant-only>
+            <button class="btn" id="prev-model" type="button" aria-label="Previous model window">◀</button>
+            <button class="btn" id="next-model" type="button" aria-label="Next model window">▶</button>
+          </div>
+          <div class="mode" role="group" aria-label="Colour by">
+            <button type="button" id="color-plddt" aria-pressed="true">pLDDT</button>
+            <button type="button" id="color-talea" aria-pressed="false">Talea units</button>
+          </div>
+          <button class="btn" id="reset-view" type="button">Reset view</button>
+          <button class="btn" id="spin" type="button" aria-pressed="false">Spin</button>
+        </div>
+      </div>
+      <div id="viewer"><div class="viewer-msg" id="viewer-msg">Loading structure…</div></div>
+      <div class="legend" id="legend-plddt" aria-label="pLDDT colours">
+        <span><i style="background: var(--pl-vhigh)"></i>Very high (&gt; 90)</span>
+        <span><i style="background: var(--pl-high)"></i>Confident (70–90)</span>
+        <span><i style="background: var(--pl-low)"></i>Low (50–70)</span>
+        <span><i style="background: var(--pl-vlow)"></i>Very low (&lt; 50)</span>
+      </div>
+      <div class="legend" id="legend-talea" aria-label="Talea unit colours" hidden>
+        <span><i style="background: var(--unit-a)"></i><i style="background: var(--unit-b)"></i>Units, primary region (alternating)</span>
+        <span><i style="background: var(--unit-c)"></i><i style="background: var(--unit-d)"></i>Units, further regions</span>
+        <span><i style="background: var(--gap-res)"></i>In a region, between units</span>
+        <span><i style="background: var(--outside-res)"></i>Outside Talea's regions</span>
+      </div>
+    </div>
+
+    <div class="card track-card" data-giant-only>
+      <div class="track-head">
+        <h3 id="track-title">Protein</h3>
+        <span class="giant-meta" id="giant-meta"></span>
+        <div class="track-tools">
+          <div class="mode" role="group" aria-label="Talea regions shown" id="region-mode" hidden>
+            <button type="button" id="regions-031" aria-pressed="true" title="Talea 0.3.1: another window's primary region enters when its mean U-Net state is at least 0.2">0.3.1</button>
+            <button type="button" id="regions-trial" aria-pressed="false" title="Window-gate trial: another window's primary region enters when that window's discovery score is at least 1.5">Trial gate</button>
+          </div>
+          <div class="mode" role="group" aria-label="Attention layer in the track">
+            <button type="button" id="strip-13" aria-pressed="false">L13</button>
+            <button type="button" id="strip-35" aria-pressed="true">L35</button>
+          </div>
+          <button class="btn" id="prev-region" type="button" title="Previous Talea region ( [ )">◀ Region</button>
+          <button class="btn" id="next-region" type="button" title="Next Talea region ( ] )">Region ▶</button>
+          <button class="btn" id="zoom-out" type="button" aria-label="Zoom out">−</button>
+          <button class="btn" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button class="btn" id="zoom-model" type="button">Fit model</button>
+          <button class="btn" id="zoom-all" type="button">Whole protein</button>
+        </div>
+      </div>
+      <canvas id="track" aria-label="Protein track: Talea window scores, residue state, helix and strand probes, repeat regions, attention near the diagonal and the folded windows at the chosen scale"></canvas>
+      <div class="track-readout" id="track-readout">Click the track to load the model there at the chosen scale · drag to pan · pinch or ctrl-scroll to zoom</div>
+    </div>
+
+    <div class="card attention">
+      <div class="attention-head">
+        <h3>Attention and Talea's call</h3>
+        <div class="att-toggles">
+          <label><input type="checkbox" id="overlay" checked> Draw Talea's regions and units</label>
+          <label data-review-only><input type="checkbox" id="blind"> Blind until I label</label>
+        </div>
+      </div>
+      <div id="att-body"></div>
+    </div>
+  </section>
+
+  <aside class="call" aria-label="Your call">
+    <div>
+      <h3>Solenoid</h3>
+      <div class="seg" id="solenoid">
+        <button type="button" data-v="yes" aria-pressed="false">Yes<kbd>Y</kbd></button>
+        <button type="button" data-v="no" aria-pressed="false">No<kbd>N</kbd></button>
+        <button type="button" data-v="unsure" aria-pressed="false">Unsure<kbd>U</kbd></button>
+      </div>
+    </div>
+    <div>
+      <h3>Fold</h3>
+      <div class="chips" id="fold"></div>
+    </div>
+    <div>
+      <h3>Repeat region</h3>
+      <div class="field">
+        <input id="residues" type="text" inputmode="numeric" placeholder="e.g. 120-340" autocomplete="off" aria-label="Repeat region residues">
+        <button class="btn" id="pick" type="button" aria-pressed="false">Pick in 3D</button>
+      </div>
+      <div class="hint" id="pick-hint">Pick in 3D, then click the first and last residue.</div>
+    </div>
+    <div>
+      <h3>Notes</h3>
+      <textarea id="notes" aria-label="Notes" placeholder="Anything worth keeping: domain boundaries, why unsure, odd geometry"></textarea>
+    </div>
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="nav">
+      <button class="btn" id="prev" type="button">← Previous</button>
+      <button class="btn primary" id="next" type="button">Next →</button>
+    </div>
+    <div class="keys" data-review-only><kbd>Y</kbd> <kbd>N</kbd> <kbd>U</kbd> solenoid · <kbd>1</kbd>–<kbd>7</kbd> fold · <kbd>←</kbd> <kbd>→</kbd> move · <kbd>.</kbd> next unlabeled</div>
+    <div class="keys" data-giant-only>Calls here apply to the model window on screen. <kbd>Y</kbd> <kbd>N</kbd> <kbd>U</kbd> solenoid · <kbd>1</kbd>–<kbd>7</kbd> fold · <kbd>←</kbd> <kbd>→</kbd> <span id="arrow-hint">model window</span> · <kbd>[</kbd> <kbd>]</kbd> Talea region · <kbd>S</kbd> next scale</div>
+    <section class="hits-panel" data-giant-only aria-label="Pfam, CDD and Foldseek hits in this model">
+      <h3>Hits in this model</h3>
+      <ol class="hits-list" id="hits-list"></ol>
+      <p class="hits-note" id="hits-note"></p>
+    </section>
+  </aside>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.4.2/3Dmol-min.js"></script>
+<script>
+(() => {
+  // Tabs: {id: {title, about}} in the order of data/sets.json, then the manifest's other sets, then "giants"
+  // (data/giants/index.json). A set missing from sets.json shows its id.
+  const SETS = {};
+  const FOLDS = [
+    ["alpha-solenoid", "α-solenoid"], ["beta-solenoid", "β-solenoid"], ["alpha-beta-solenoid", "α/β-solenoid"],
+    ["helical-bundle", "Helical bundle"], ["coiled-coil", "Coiled coil"], ["other-fold", "Other fold"],
+    ["low-confidence", "Disordered / low pLDDT"],
+  ];
+  const PLDDT = (b) => (b >= 90 ? 0x0053d6 : b >= 70 ? 0x65cbf3 : b >= 50 ? 0xffdb13 : 0xff7d45);
+  const UNIT_COLORS = { primary: [0xe07b39, 0x2f6fde], further: [0xc2418f, 0x1e9e8f] };
+  const GAP_RES = 0x7a8590, OUTSIDE_RES = 0xc4cbd2;
+
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+    set(key, value) { try { localStorage.setItem(key, value); } catch { /* storage unavailable */ } },
+  };
+
+  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, db: null, dbReady: false, colorMode: "plddt" };
+  // Attention images are two panels of min(L, 480) px with an 8 px gap (build/prepare_review_data.py).
+  const PANEL = 480, GAP = 8;
+  let viewer = null, spinning = false, picking = null, loadToken = 0;
+  const textCache = new Map();
+  const saving = new Map();
+
+  const giantMode = () => state.set === "giants";
+  const items = () => (state.manifest && !giantMode() ? state.manifest.sets[state.set] || [] : []);
+  const current = () => (giantMode() ? giantItem() : items()[state.index]);
+  const labelOf = (item) => (item ? state.labels[item.id] : undefined);
+  const giantLabels = () => Object.entries(state.labels).filter(([id]) => id.startsWith("giants-"));
+
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  // ---------- rendering ----------
+  function renderSets() {
+    const wrap = $("sets");
+    wrap.textContent = "";
+    for (const [id, info] of Object.entries(SETS)) {
+      if (id === "giants" && !giant.index) continue;
+      const list = state.manifest ? state.manifest.sets[id] || [] : [];
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "set-tab"; button.setAttribute("role", "tab");
+      button.setAttribute("aria-selected", String(id === state.set));
+      const done = list.filter((it) => state.labels[it.id]?.solenoid).length;
+      button.innerHTML = `<span></span><span class="count"></span>`;
+      button.firstChild.textContent = info.title;
+      button.lastChild.textContent = id === "giants"
+        ? `${giant.index.proteins.length} · ${giantLabels().filter(([, l]) => l.solenoid).length} calls`
+        : `${done}/${list.length}`;
+      button.addEventListener("click", () => selectSet(id));
+      wrap.append(button);
+    }
+    $("about").textContent = SETS[state.set]?.about || "";
+    document.body.dataset.mode = giantMode() ? "giants" : "review";
+  }
+
+  function renderProgress() {
+    const list = items();
+    const counts = { yes: 0, no: 0, unsure: 0 };
+    if (giantMode()) { for (const [, l] of giantLabels()) if (l.solenoid) counts[l.solenoid] += 1; }
+    else for (const it of list) { const v = state.labels[it.id]?.solenoid; if (v) counts[v] += 1; }
+    const done = counts.yes + counts.no + counts.unsure;
+    const total = (giantMode() ? done : list.length) || 1;
+    $("progress").innerHTML = `<div class="bar" aria-hidden="true"><span class="y"></span><span class="n"></span><span class="u"></span></div><span class="mono"></span>`;
+    const spans = $("progress").querySelectorAll(".bar span");
+    spans[0].style.width = `${(100 * counts.yes) / total}%`;
+    spans[1].style.width = `${(100 * counts.no) / total}%`;
+    spans[2].style.width = `${(100 * counts.unsure) / total}%`;
+    $("progress").querySelector(".mono").textContent = giantMode()
+      ? `${done} model window${done === 1 ? "" : "s"} called · ${counts.yes} yes · ${counts.no} no · ${counts.unsure} unsure`
+      : `${done} of ${list.length} labeled · ${counts.yes} yes · ${counts.no} no · ${counts.unsure} unsure`;
+  }
+
+  function renderList() {
+    if (giantMode()) { renderGiantList(); return; }
+    const ol = $("list");
+    ol.textContent = "";
+    ol.dataset.view = "review";
+    items().forEach((it, i) => {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("aria-current", String(i === state.index));
+      const v = state.labels[it.id]?.solenoid;
+      const pill = v ? { yes: "Solenoid", no: "Not", unsure: "Unsure" }[v] : "—";
+      button.innerHTML = `<span class="name"></span><span class="pill ${v || ""}"></span><span class="len"></span>`;
+      button.querySelector(".name").textContent = it.file.replace(".pdb", "");
+      button.querySelector(".pill").textContent = pill;
+      button.querySelector(".len").textContent = `${it.length.toLocaleString()} aa`;
+      button.addEventListener("click", () => select(i));
+      li.append(button);
+      ol.append(li);
+    });
+    const active = ol.querySelector('[aria-current="true"]');
+    if (active) revealInList(active);
+  }
+
+  // Scrolls the protein list alone to the active row, so a call saved at the foot of the page leaves the page where it is.
+  function revealInList(row) {
+    const box = row.closest(".list");
+    const r = row.getBoundingClientRect();
+    const top = box.getBoundingClientRect().top + box.clientTop, bottom = top + box.clientHeight;
+    if (r.top < top) box.scrollTop -= top - r.top;
+    else if (r.bottom > bottom) box.scrollTop += r.bottom - bottom;
+  }
+
+  function renderForm() {
+    const it = current();
+    const label = labelOf(it) || {};
+    $("current-name").textContent = giantMode()
+      ? (it ? it.file : giantEmptyName())
+      : (it ? `${it.file.replace(".pdb", "")} · ${it.length.toLocaleString()} aa` : "No proteins");
+    for (const b of $("solenoid").querySelectorAll("button")) b.setAttribute("aria-pressed", String(label.solenoid === b.dataset.v));
+    for (const b of $("fold").querySelectorAll("button")) b.setAttribute("aria-pressed", String(label.fold === b.dataset.v));
+    if (document.activeElement !== $("residues")) $("residues").value = label.residues || "";
+    if (document.activeElement !== $("notes")) $("notes").value = label.notes || "";
+    renderStatus(it);
+    renderAttention();
+  }
+
+  function renderStatus(it) {
+    const s = $("status");
+    s.classList.remove("err");
+    if (!it) { s.textContent = ""; return; }
+    const pending = saving.get(it.id);
+    if (pending?.error) { s.classList.add("err"); s.textContent = pending.error; return; }
+    if (pending?.busy) { s.textContent = "Saving…"; return; }
+    const label = labelOf(it);
+    if (!state.db) { s.textContent = state.dbReady ? "Kept in this browser only" : "Connecting to saved labels…"; return; }
+    s.textContent = (label?.updatedAt ? `Saved ${new Date(label.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Not labeled yet")
+      + (state.db.file ? ` · ${state.db.file}` : "");
+  }
+
+  // Talea positions index the modelled sequence; a model numbered other than 1..L carries `resi` in its call.
+  function resiOf(it, position) {
+    const map = state.calls[it.id]?.resi;
+    return map ? map[position - 1] : position;
+  }
+
+  function callVisible(it) {
+    return !$("blind").checked || Boolean(labelOf(it)?.solenoid);
+  }
+
+  function renderAttention() {
+    if (giantMode()) { renderGiantAttention(); return; }
+    const it = current();
+    const body = $("att-body");
+    body.textContent = "";
+    if (!it) return;
+    if (!callVisible(it)) {
+      const d = document.createElement("div");
+      d.className = "att-hidden";
+      d.textContent = "Blind mode: the attention map and Talea's call appear once this protein has a solenoid call.";
+      body.append(d);
+      return;
+    }
+    const layers = state.manifest.layers || [13, 35];
+    const cols = document.createElement("div");
+    cols.className = "att-cols";
+    cols.innerHTML = `<span></span><span></span>`;
+    cols.children[0].textContent = `Layer ${layers[0]} · residues 1–${it.length}`;
+    cols.children[1].textContent = `Layer ${layers[1]} · residues 1–${it.length}`;
+    const frame = document.createElement("div");
+    frame.className = "att-frame";
+    const img = document.createElement("img");
+    img.src = it.attention;
+    img.alt = `Attention maps for ${it.file}, residue against residue, layers ${layers[0]} and ${layers[1]}`;
+    frame.append(img);
+    const regions = state.calls[it.id]?.regions || [];
+    if ($("overlay").checked && regions.length) frame.append(overlaySvg(it, regions));
+    body.append(cols, frame, regionList(it, regions));
+  }
+
+  function overlaySvg(it, regions) {
+    const size = Math.min(it.length, PANEL);
+    const width = 2 * size + GAP, k = size / it.length;
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", `0 0 ${width} ${size}`);
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("aria-hidden", "true");
+    const square = (ox, start, end, attrs) => {
+      const r = document.createElementNS(ns, "rect");
+      r.setAttribute("x", ox + (start - 1) * k);
+      r.setAttribute("y", (start - 1) * k);
+      r.setAttribute("width", Math.max((end - start + 1) * k, 1));
+      r.setAttribute("height", Math.max((end - start + 1) * k, 1));
+      r.setAttribute("fill", "none");
+      r.setAttribute("vector-effect", "non-scaling-stroke");
+      for (const [key, value] of Object.entries(attrs)) r.setAttribute(key, value);
+      svg.append(r);
+    };
+    for (const ox of [0, size + GAP]) {
+      for (const region of regions) {
+        const primary = region.source === "primary";
+        for (const unit of region.units || []) square(ox, unit.start, unit.end, { stroke: "#ffffff", "stroke-opacity": "0.55", "stroke-width": "1" });
+        square(ox, region.start, region.end, {
+          stroke: primary ? cssVar("--call-primary") : cssVar("--call-further"),
+          "stroke-width": "2", "stroke-dasharray": primary ? "" : "5 4",
+        });
+      }
+    }
+    return svg;
+  }
+
+  function regionList(it, regions) {
+    const wrap = document.createElement("div");
+    const head = document.createElement("h3");
+    head.textContent = state.taleaVersion ? `Talea ${state.taleaVersion} regions` : "Talea regions";
+    wrap.append(head);
+    if (!regions.length) {
+      const p = document.createElement("p");
+      p.className = "hint";
+      p.textContent = "Talea places no repeat region in this protein.";
+      wrap.append(p);
+      return wrap;
+    }
+    const ol = document.createElement("ol");
+    ol.className = "regions";
+    for (const region of regions) {
+      const li = document.createElement("li");
+      const further = region.source !== "primary";
+      li.innerHTML = `<span class="swatch${further ? " further" : ""}"></span><span class="mono"></span><span class="meta"></span>`;
+      li.children[1].textContent = `${resiOf(it, region.start)}–${resiOf(it, region.end)}`;
+      const units = (region.units || []).length;
+      li.children[2].textContent = `${further ? "further" : "primary"} · period ${region.period} aa · ${units} unit${units === 1 ? "" : "s"}`;
+      ol.append(li);
+    }
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.textContent = "Talea registers a primary region for nearly every protein, strong or weak; scores are left out of this view."
+      + (state.calls[it.id]?.resi ? " This model's residue numbering skips residues, so ranges here use the model's numbering while the map's axes count modelled residues." : "");
+    wrap.append(ol, note);
+    return wrap;
+  }
+
+  function renderAll() { renderSets(); renderProgress(); renderList(); renderForm(); }
+
+  // ---------- structure viewer ----------
+  async function fetchText(url) {
+    if (textCache.has(url)) return textCache.get(url);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${res.status} for ${url}`);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    let text;
+    if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+      text = await new Response(stream).text();
+    } else {
+      text = new TextDecoder().decode(bytes);
+    }
+    textCache.set(url, text);
+    if (textCache.size > 8) textCache.delete(textCache.keys().next().value);
+    return text;
+  }
+
+  function ensureViewer() {
+    if (viewer || !window.$3Dmol) return viewer;
+    viewer = $3Dmol.createViewer($("viewer"), { backgroundColor: cssVar("--viewer-bg") || "#ffffff", antialias: true });
+    window.addEventListener("resize", () => { viewer.resize(); viewer.render(); });
+    return viewer;
+  }
+
+  async function showStructure() {
+    if (giantMode()) { showGiantStructure(); return; }
+    const it = current();
+    const msg = $("viewer-msg");
+    if (!it) return;
+    const token = ++loadToken;
+    msg.hidden = false;
+    msg.textContent = `Loading ${it.file}…`;
+    let text;
+    try { text = await fetchText(it.pdb); } catch (e) { if (token === loadToken) msg.textContent = `Could not load ${it.file}: ${e.message}`; return; }
+    if (token !== loadToken) return;
+    const v = ensureViewer();
+    if (!v) { msg.textContent = "The 3D viewer library did not load. Reload the page to try again."; return; }
+    v.clear();
+    v.addModel(text, "pdb");
+    applyColors(it);
+    v.setHoverable({}, true,
+      (atom) => { $("readout").textContent = `Residue ${atom.resi} ${atom.resn} · pLDDT ${Math.round(atom.b)}`; },
+      () => {});
+    v.setClickable({}, true, (atom) => pickResidue(atom.resi));
+    v.zoomTo();
+    v.render();
+    if (spinning) v.spin("y", 0.6);
+    msg.hidden = true;
+    const next = items()[state.index + 1];
+    if (next) fetchText(next.pdb).catch(() => {});
+  }
+
+  function taleaColors(it) {
+    const colors = new Map();
+    for (const region of state.calls[it.id]?.regions || []) {
+      const palette = UNIT_COLORS[region.source === "primary" ? "primary" : "further"];
+      for (let r = region.start; r <= region.end; r++) if (!colors.has(resiOf(it, r))) colors.set(resiOf(it, r), GAP_RES);
+      (region.units || []).forEach((unit, k) => {
+        for (let r = unit.start; r <= unit.end; r++) colors.set(resiOf(it, r), palette[k % 2]);
+      });
+    }
+    return colors;
+  }
+
+  function applyColors(it) {
+    if (!viewer || !it) return;
+    const useTalea = state.colorMode === "talea" && (it.giant || callVisible(it));
+    const mark = it.giant && giant.highlight?.model === it.id ? giant.highlight : null;
+    if (mark) {
+      // A hit picked in the sidebar: its span in the hit's colour, the rest of the model grey.
+      viewer.setStyle({}, { cartoon: { colorfunc: (atom) => {
+        const p = it.start + atom.resi - 1;
+        return p >= mark.start && p < mark.end ? mark.color : OUTSIDE_RES;
+      } } });
+    } else if (useTalea) {
+      const colors = it.giant ? giantTaleaColors(it) : taleaColors(it);
+      viewer.setStyle({}, { cartoon: { colorfunc: (atom) => colors.get(atom.resi) ?? OUTSIDE_RES } });
+    } else {
+      viewer.setStyle({}, { cartoon: { colorfunc: (atom) => PLDDT(atom.b) } });
+    }
+    $("legend-plddt").hidden = useTalea;
+    $("legend-talea").hidden = !useTalea;
+    $("color-plddt").setAttribute("aria-pressed", String(!useTalea));
+    $("color-talea").setAttribute("aria-pressed", String(useTalea));
+    viewer.render();
+  }
+
+  function pickResidue(resi) {
+    if (!picking) return;
+    if (picking.start === null) {
+      picking.start = resi;
+      $("pick-hint").textContent = `First residue ${resi}. Click the last residue.`;
+      return;
+    }
+    const [a, b] = [picking.start, resi].sort((x, y) => x - y);
+    picking = null;
+    $("pick").setAttribute("aria-pressed", "false");
+    $("pick-hint").textContent = "Pick in 3D, then click the first and last residue.";
+    const field = $("residues");
+    field.value = field.value.trim() ? `${field.value.trim()}, ${a}-${b}` : `${a}-${b}`;
+    saveField({ residues: field.value });
+  }
+
+  // ---------- labels ----------
+  function writeLabel(it, patch) {
+    const id = it.id;
+    const where = it.giant ? { protein: it.protein, scheme: it.scheme, start: it.start + 1, end: it.end } : {};
+    const next = { ...(state.labels[id] || {}), ...patch, ...where, set: it.set, file: it.file, updatedAt: new Date().toISOString() };
+    state.labels[id] = next;
+    store.set(`label:${id}`, JSON.stringify(next));
+    renderSets(); renderProgress(); renderList(); renderForm();
+    if (state.colorMode === "talea") applyColors(it);
+    if (it.giant) drawTrack();
+    if (!state.db) return;
+    const entry = saving.get(id) || { busy: false, again: false, error: "" };
+    saving.set(id, entry);
+    if (entry.busy) { entry.again = true; return; }
+    const run = async () => {
+      entry.busy = true; entry.error = ""; renderStatus(current());
+      try {
+        await state.db.collection("labels").doc(id).set(state.labels[id]);
+      } catch (e) {
+        entry.error = e?.code === "invalid_argument"
+          ? "Not saved: this view cannot write labels. Copy them as TSV instead."
+          : `Not saved (${e?.code || "error"}). Change any field to try again.`;
+      }
+      entry.busy = false;
+      if (entry.again && !entry.error) { entry.again = false; return run(); }
+      renderStatus(current());
+    };
+    run();
+  }
+
+  let fieldTimer = null;
+  function saveField(patch, delay = 0) {
+    const it = current();
+    if (!it) return;
+    clearTimeout(fieldTimer);
+    if (!delay) { writeLabel(it, patch); return; }
+    fieldTimer = setTimeout(() => writeLabel(it, patch), delay);
+  }
+
+  function setSolenoid(value) {
+    const it = current();
+    if (!it) return;
+    const label = labelOf(it) || {};
+    writeLabel(it, { solenoid: label.solenoid === value ? "" : value, talea_visible: callVisible(it) });
+  }
+  function setFold(value) {
+    const it = current();
+    if (!it) return;
+    const label = labelOf(it) || {};
+    writeLabel(it, { fold: label.fold === value ? "" : value });
+  }
+
+  // serve.py keeps labels in a JSON file behind api/labels, read once at load; the same interface as the
+  // artifact database on claude.ai.
+  async function fileDb() {
+    let body;
+    try {
+      const res = await fetch("api/labels", { cache: "no-store" });
+      if (!res.ok) return null;
+      body = await res.json();
+    } catch { return null; }
+    if (!body?.labels) return null;
+    const put = async (id, data) => {
+      const res = await fetch(`api/labels/${encodeURIComponent(id)}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+      });
+      if (!res.ok) throw { code: `HTTP ${res.status}` };
+    };
+    return {
+      file: body.file,
+      collection: () => ({
+        doc: (id) => ({ set: (data) => put(id, data) }),
+        onSnapshot: (next) => { next({ docs: Object.entries(body.labels).map(([id, data]) => ({ id, data: () => data })) }); },
+      }),
+    };
+  }
+
+  async function connectDb() {
+    try {
+      const db = (await fileDb()) || (window.claude?.use ? await window.claude.use("db") : null);
+      state.dbReady = true;
+      if (!db) { showNotice("Labels are kept in this browser only in this view. Start the bench with serve.py to save them to a file, or open it on claude.ai while signed in."); loadLocalLabels(); renderAll(); return; }
+      state.db = db;
+      db.collection("labels").onSnapshot((snap) => {
+        for (const doc of snap.docs) {
+          const id = doc.id;
+          if (saving.get(id)?.busy) continue;
+          state.labels[id] = doc.data();
+        }
+        renderSets(); renderProgress(); renderList(); renderForm();
+        if (giantMode()) drawTrack();
+      }, (e) => { showNotice(`Saved labels stopped updating (${e.code}). Reload the page to reconnect.`); });
+      renderStatus(current());
+    } catch (e) {
+      state.dbReady = true;
+      showNotice("Saved labels are unavailable in this view; new labels stay in this browser.");
+      loadLocalLabels(); renderAll();
+    }
+  }
+  function loadLocalLabels() {
+    for (const it of Object.values(state.manifest?.sets || {}).flat()) {
+      const raw = store.get(`label:${it.id}`);
+      if (raw) { try { state.labels[it.id] = JSON.parse(raw); } catch { /* ignore */ } }
+    }
+    try {
+      for (let k = 0; k < localStorage.length; k++) {
+        const key = localStorage.key(k);
+        if (!key?.startsWith("label:giants-")) continue;
+        try { state.labels[key.slice(6)] = JSON.parse(localStorage.getItem(key)); } catch { /* ignore */ }
+      }
+    } catch { /* storage unavailable */ }
+  }
+  function showNotice(text) { const n = $("notice"); n.textContent = text; n.hidden = false; }
+
+  function labelsTsv() {
+    const rows = [["set", "file", "solenoid", "fold", "residues", "notes", "talea_visible", "updated"].join("\t")];
+    for (const [setId, list] of Object.entries(state.manifest.sets)) {
+      for (const it of list) {
+        const l = state.labels[it.id] || {};
+        rows.push([setId, it.file, l.solenoid || "", l.fold || "", l.residues || "", (l.notes || "").replace(/[\t\n\r]+/g, " "), l.talea_visible === undefined ? "" : String(l.talea_visible), l.updatedAt || ""].join("\t"));
+      }
+    }
+    for (const [, l] of giantLabels().sort((a, b) => a[0].localeCompare(b[0]))) {
+      rows.push(["giants", `${l.protein}:${l.scheme}:${l.start}-${l.end}`, l.solenoid || "", l.fold || "", l.residues || "", (l.notes || "").replace(/[\t\n\r]+/g, " "), "true", l.updatedAt || ""].join("\t"));
+    }
+    return rows.join("\n");
+  }
+
+  // ---------- navigation ----------
+  function select(i) {
+    if (giantMode()) { if (rankedList()) stepRanked(i - state.index); else stepModel(i - state.index); return; }
+    const list = items();
+    if (!list.length) return;
+    state.index = Math.max(0, Math.min(list.length - 1, i));
+    store.set("position", JSON.stringify({ set: state.set, index: state.index }));
+    picking = null; $("pick").setAttribute("aria-pressed", "false");
+    renderList(); renderForm(); showStructure();
+  }
+  function selectSet(id) {
+    if (id === "giants") {
+      if (!giant.index) return;
+      state.set = id;
+      store.set("position", JSON.stringify({ set: id, index: 0 }));
+      renderAll();
+      const saved = (() => { try { return JSON.parse(store.get("giant-position") || "null"); } catch { return null; } })();
+      const found = saved ? giant.index.proteins.findIndex((p) => p.id === saved.protein) : -1;
+      selectGiant(found >= 0 ? found : 0, found >= 0 ? saved : null);
+      return;
+    }
+    if (!state.manifest?.sets[id]) return;
+    state.set = id;
+    state.index = 0;
+    renderAll(); showStructure();
+  }
+  function nextUnlabeled() {
+    const list = items();
+    for (let step = 1; step <= list.length; step++) {
+      const i = (state.index + step) % list.length;
+      if (!state.labels[list[i].id]?.solenoid) { select(i); return; }
+    }
+  }
+
+  // ---------- giants: data ----------
+  // Positions are 0-based, half-open in the protein (Talea's frame); the page shows them 1-based, inclusive.
+  const SCHEME_LABELS = { w500_s250: "500", w1000_s500: "1,000", w1500_s500: "1,500", w1500_s1000: "1,500 refold", w2000_s1000: "2,000" };
+  const SCHEME_ORDER = ["w500_s250", "w1000_s500", "w1500_s500", "w1500_s1000", "w2000_s1000"];
+  // Mean in-plane positions (A) of C(i), O(i), N(i+1) in the frame of CA(i) -> CA(i+1) (backbone_codec.PLANE).
+  const PLANE = { C: [1.427, 0.523], O: [1.656, 1.735], N: [2.347, -0.372] };
+  const THREE = { A: "ALA", R: "ARG", N: "ASN", D: "ASP", C: "CYS", Q: "GLN", E: "GLU", G: "GLY", H: "HIS", I: "ILE",
+    L: "LEU", K: "LYS", M: "MET", F: "PHE", P: "PRO", S: "SER", T: "THR", W: "TRP", Y: "TYR", V: "VAL" };
+  const giant = { index: null, protein: -1, data: null, strip: null, scheme: "w2000_s1000", model: 0, view: [0, 1], layer: 1, hover: null, regionCursor: -1,
+    trial: null, regionMode: "031", hits: null, highlight: null, ranked: null, byKey: null, listMode: "proteins", rankCursor: -1 };
+  const bundleCache = new Map();
+  const pdbCache = new Map();
+  let giantToken = 0;
+  const fmt = (n) => Math.round(n).toLocaleString();
+  const giantEntry = () => giant.index?.proteins[giant.protein];
+  const giantModels = () => giant.data?.models[giant.scheme] || [];
+  const giantModel = () => giantModels()[giant.model];
+
+  function giantItem() {
+    const entry = giantEntry(), m = giantModel();
+    if (!entry || !m) return undefined;
+    return {
+      id: `giants-${entry.key}-${m.scheme}-${m.start}`, set: "giants", giant: true, protein: entry.id,
+      scheme: m.scheme, start: m.start, end: m.end, length: m.end - m.start,
+      file: `${entry.name} · ${fmt(m.end - m.start)}-aa model${m.scheme === "w1500_s1000" ? " (refold)" : ""} · ${fmt(m.start + 1)}–${fmt(m.end)}`,
+    };
+  }
+  function giantEmptyName() {
+    const entry = giantEntry();
+    if (!entry) return "Loading giants…";
+    if (!giant.data) return `${entry.name} · loading…`;
+    return `${entry.name} · ${giant.data.header.models.length ? "no model at this scale" : "no Protenix models"}`;
+  }
+
+  // A giant's bundle travels as the pixels of an 8-bit grayscale PNG (the host serves images, not raw binary): the
+  // PNG's zlib stream holds the bytes and its Adler-32 checks them. Parsed here byte for byte, never decoded as a picture.
+  async function fetchPngBytes(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${res.status} for ${url}`);
+    const file = new Uint8Array(await res.arrayBuffer());
+    const view = new DataView(file.buffer, file.byteOffset, file.byteLength);
+    const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+    if (signature.some((b, k) => file[k] !== b)) throw new Error(`${url} is not a PNG`);
+    let p = 8, width = 0, height = 0, layout = "";
+    const idat = [];
+    while (p + 8 <= file.length) {
+      const length = view.getUint32(p);
+      const type = String.fromCharCode(file[p + 4], file[p + 5], file[p + 6], file[p + 7]);
+      if (type === "IHDR") { width = view.getUint32(p + 8); height = view.getUint32(p + 12); layout = `${file[p + 16]}/${file[p + 17]}/${file[p + 20]}`; }
+      else if (type === "IDAT") idat.push(file.subarray(p + 8, p + 8 + length));
+      else if (type === "IEND") break;
+      p += 12 + length;
+    }
+    if (layout !== "8/0/0") throw new Error(`${url}: unexpected PNG layout ${layout}`);
+    const stream = new Blob(idat).stream().pipeThrough(new DecompressionStream("deflate"));
+    const scan = new Uint8Array(await new Response(stream).arrayBuffer());
+    const out = new Uint8Array(width * height);
+    for (let r = 0; r < height; r++) {
+      const filter = scan[r * (width + 1)];
+      const src = scan.subarray(r * (width + 1) + 1, (r + 1) * (width + 1));
+      const row = out.subarray(r * width, (r + 1) * width);
+      if (filter === 0) { row.set(src); continue; }
+      const prev = r ? out.subarray((r - 1) * width, r * width) : new Uint8Array(width);
+      for (let x = 0; x < width; x++) {
+        const a = x ? row[x - 1] : 0, b = prev[x], c = x ? prev[x - 1] : 0;
+        let predictor = 0;
+        if (filter === 1) predictor = a;
+        else if (filter === 2) predictor = b;
+        else if (filter === 3) predictor = (a + b) >> 1;
+        else if (filter === 4) {
+          const q = a + b - c, pa = Math.abs(q - a), pb = Math.abs(q - b), pc = Math.abs(q - c);
+          predictor = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+        }
+        row[x] = src[x] + predictor;
+      }
+    }
+    const length = new DataView(out.buffer).getUint32(0, true);
+    return out.subarray(4, 4 + length);
+  }
+
+  async function fetchBundle(entry) {
+    const bytes = await fetchPngBytes(entry.bundle);
+    const headerLength = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
+    const header = JSON.parse(new TextDecoder().decode(bytes.subarray(4, 4 + headerLength)));
+    const body = bytes.subarray(4 + headerLength);
+    const [stateOffset, stateLength] = header.tracks.state;
+    const [ssOffset, ssLength, ssBin] = header.tracks.ss;
+    const models = {};
+    for (const [scheme, start, end, offset, n, plddt, ptm, ranking, mode, substitutions] of header.models) {
+      (models[scheme] ||= []).push({ scheme, start, end, offset, n, plddt, ptm, ranking, mode, substitutions });
+    }
+    for (const list of Object.values(models)) list.sort((a, b) => a.start - b.start);
+    const t = header.talea;
+    const windows = t.windows.map(([start, end, score, period, wedgeStart, wedgeEnd, regStart, regEnd, units, stateZ], k) =>
+      ({ index: k, start, end, score, period, wedgeStart, wedgeEnd, regStart, regEnd, units, stateZ }));
+    // Each Talea window owns the stretch between the midpoints of its neighbours' centres.
+    windows.forEach((w, k) => {
+      const centre = (x) => (x.start + x.end) / 2;
+      w.ownStart = k ? (centre(windows[k - 1]) + centre(w)) / 2 : 0;
+      w.ownEnd = k < windows.length - 1 ? (centre(w) + centre(windows[k + 1])) / 2 : header.length;
+    });
+    const regions = t.regions.map(([start, end, period, further, window, meanState, wedge, flat]) => {
+      const units = [];
+      for (let k = 0; k + 1 < flat.length; k += 2) units.push([flat[k], flat[k + 1]]);
+      return { start, end, period, further: Boolean(further), window, meanState, wedge, units };
+    }).sort((a, b) => a.start - b.start || a.end - b.end);
+    const prefix = (values) => { const out = new Float64Array(values.length + 1); for (let k = 0; k < values.length; k++) out[k + 1] = out[k] + values[k]; return out; };
+    const state = body.subarray(stateOffset, stateOffset + stateLength);
+    const helix = body.subarray(ssOffset, ssOffset + ssLength);
+    const strand = body.subarray(ssOffset + ssLength, ssOffset + 2 * ssLength);
+    return {
+      header, body, length: header.length, models, windows, regions, ssBin,
+      state, helix, strand, statePrefix: prefix(state), helixPrefix: prefix(helix), strandPrefix: prefix(strand),
+      best: t.best_window, score: t.score,
+    };
+  }
+  function getBundle(entry) {
+    if (!bundleCache.has(entry.id)) {
+      const promise = fetchBundle(entry).catch((e) => { bundleCache.delete(entry.id); throw e; });
+      bundleCache.set(entry.id, promise);
+      while (bundleCache.size > 4) bundleCache.delete(bundleCache.keys().next().value);
+    }
+    return bundleCache.get(entry.id);
+  }
+
+  // Rebuilds N, CA, C, O from a record (backbone_codec.py): CA trace on a 0.1 A grid plus one peptide-plane angle per peptide.
+  function modelPdb(data, m) {
+    const base = data.body.byteOffset + m.offset;
+    const view = new DataView(data.body.buffer, base);
+    let p = 0;
+    const n = view.getUint32(p, true); p += 4;
+    let gx = view.getInt16(p, true), gy = view.getInt16(p + 2, true), gz = view.getInt16(p + 4, true); p += 6;
+    const longCount = view.getUint16(p, true); p += 2;
+    const longSteps = new Map();
+    for (let k = 0; k < longCount; k++) {
+      longSteps.set(view.getUint32(p, true), [view.getInt16(p + 4, true), view.getInt16(p + 6, true), view.getInt16(p + 8, true)]);
+      p += 10;
+    }
+    const ca = new Float64Array(3 * n);
+    ca[0] = gx / 10; ca[1] = gy / 10; ca[2] = gz / 10;
+    for (let i = 0; i < n - 1; i++) {
+      const step = longSteps.get(i);
+      gx += step ? step[0] : view.getInt8(p + 3 * i);
+      gy += step ? step[1] : view.getInt8(p + 3 * i + 1);
+      gz += step ? step[2] : view.getInt8(p + 3 * i + 2);
+      ca[3 * i + 3] = gx / 10; ca[3 * i + 4] = gy / 10; ca[3 * i + 5] = gz / 10;
+    }
+    p += 3 * (n - 1);
+    const plane = new Uint8Array(data.body.buffer, base + p, n - 1); p += n - 1;
+    const plddt = new Uint8Array(data.body.buffer, base + p, n);
+    const N = new Float64Array(3 * n), C = new Float64Array(3 * n), O = new Float64Array(3 * n);
+    for (let i = 0; i < n - 1; i++) {
+      const ax = ca[3 * i + 3] - ca[3 * i], ay = ca[3 * i + 4] - ca[3 * i + 1], az = ca[3 * i + 5] - ca[3 * i + 2];
+      const norm = Math.sqrt(ax * ax + ay * ay + az * az);
+      const x = [ax / norm, ay / norm, az / norm];
+      const mags = x.map(Math.abs);
+      let k = 0;
+      if (mags[1] < mags[k]) k = 1;
+      if (mags[2] < mags[k]) k = 2;
+      const f = [0, 0, 0]; f[k] = 1;
+      for (let d = 0; d < 3; d++) f[d] -= x[k] * x[d];
+      const fn = Math.sqrt(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
+      for (let d = 0; d < 3; d++) f[d] /= fn;
+      const s = [x[1] * f[2] - x[2] * f[1], x[2] * f[0] - x[0] * f[2], x[0] * f[1] - x[1] * f[0]];
+      const angle = (plane[i] / 256) * 2 * Math.PI;
+      const u = [0, 1, 2].map((d) => Math.cos(angle) * f[d] + Math.sin(angle) * s[d]);
+      for (let d = 0; d < 3; d++) {
+        C[3 * i + d] = ca[3 * i + d] + PLANE.C[0] * x[d] + PLANE.C[1] * u[d];
+        O[3 * i + d] = ca[3 * i + d] + PLANE.O[0] * x[d] + PLANE.O[1] * u[d];
+        N[3 * i + 3 + d] = ca[3 * i + d] + PLANE.N[0] * x[d] + PLANE.N[1] * u[d];
+      }
+    }
+    for (let d = 0; d < 3 && n > 1; d++) {
+      N[d] = ca[d] - (N[3 + d] - ca[3 + d]);
+      C[3 * (n - 1) + d] = ca[3 * (n - 1) + d] + (ca[3 * (n - 2) + d] - N[3 * (n - 1) + d]);
+      O[3 * (n - 1) + d] = C[3 * (n - 1) + d] + (O[3 * (n - 2) + d] - C[3 * (n - 2) + d]);
+    }
+    orientOnPrincipalAxes(ca, [N, ca, C, O]);
+    const sequence = data.header.sequence;
+    const lines = [];
+    let serial = 1;
+    const coord = (v) => v.toFixed(3).padStart(8);
+    for (let i = 0; i < n; i++) {
+      const resn = THREE[sequence[m.start + i]] || "UNK";
+      const resi = String(i + 1).padStart(4);
+      const b = plddt[i].toFixed(2).padStart(6);
+      for (const [name, xyz, element] of [[" N  ", N, "N"], [" CA ", ca, "C"], [" C  ", C, "C"], [" O  ", O, "O"]]) {
+        lines.push(`ATOM  ${String(serial++).padStart(5)} ${name} ${resn} A${resi}    ${coord(xyz[3 * i])}${coord(xyz[3 * i + 1])}${coord(xyz[3 * i + 2])}  1.00${b}           ${element}`);
+      }
+    }
+    lines.push("END");
+    return lines.join("\n");
+  }
+
+  // Rotates the model (in place) so its longest C-alpha principal axis runs across the screen with the N-terminus on the
+  // left and its shortest points at the viewer; a long solenoid then loads side-on. The frame is right-handed, so the
+  // model is rotated, never mirrored.
+  function orientOnPrincipalAxes(trace, arrays) {
+    const n = trace.length / 3;
+    if (n < 3) return;
+    const centre = [0, 0, 0];
+    for (let i = 0; i < n; i++) for (let d = 0; d < 3; d++) centre[d] += trace[3 * i + d] / n;
+    const a = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    for (let i = 0; i < n; i++) {
+      const p = [0, 1, 2].map((d) => trace[3 * i + d] - centre[d]);
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) a[r][c] += p[r] * p[c];
+    }
+    const v = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    for (let sweep = 0; sweep < 12; sweep++) {
+      for (const [p, q] of [[0, 1], [0, 2], [1, 2]]) {
+        if (Math.abs(a[p][q]) < 1e-9) continue;
+        const theta = (a[q][q] - a[p][p]) / (2 * a[p][q]);
+        const t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+        const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+        for (let k = 0; k < 3; k++) { const kp = a[k][p], kq = a[k][q]; a[k][p] = c * kp - s * kq; a[k][q] = s * kp + c * kq; }
+        for (let k = 0; k < 3; k++) { const pk = a[p][k], qk = a[q][k]; a[p][k] = c * pk - s * qk; a[q][k] = s * pk + c * qk; }
+        for (let k = 0; k < 3; k++) { const kp = v[k][p], kq = v[k][q]; v[k][p] = c * kp - s * kq; v[k][q] = s * kp + c * kq; }
+      }
+    }
+    const order = [0, 1, 2].sort((x, y) => a[y][y] - a[x][x]);
+    const axis = (k) => [v[0][order[k]], v[1][order[k]], v[2][order[k]]];
+    const e1 = axis(0), e2 = axis(1);
+    const first = [0, 1, 2].map((d) => trace[d] - centre[d]);
+    if (e1[0] * first[0] + e1[1] * first[1] + e1[2] * first[2] > 0) for (let d = 0; d < 3; d++) e1[d] = -e1[d];
+    const e3 = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    const done = new Set();
+    for (const xyz of arrays) {
+      if (done.has(xyz)) continue;
+      done.add(xyz);
+      for (let i = 0; i < n; i++) {
+        const p = [0, 1, 2].map((d) => xyz[3 * i + d] - centre[d]);
+        xyz[3 * i] = p[0] * e1[0] + p[1] * e1[1] + p[2] * e1[2];
+        xyz[3 * i + 1] = p[0] * e2[0] + p[1] * e2[1] + p[2] * e2[2];
+        xyz[3 * i + 2] = p[0] * e3[0] + p[1] * e3[1] + p[2] * e3[2];
+      }
+    }
+  }
+
+  // ---------- giants: selection and navigation ----------
+  async function selectGiant(i, saved = null) {
+    const list = giant.index.proteins;
+    giant.protein = Math.max(0, Math.min(list.length - 1, i));
+    const entry = list[giant.protein];
+    const token = ++giantToken;
+    giant.data = null; giant.strip = null; giant.hover = null; giant.regionCursor = -1;
+    picking = null; $("pick").setAttribute("aria-pressed", "false");
+    renderGiantList(); renderForm(); drawTrack();
+    $("viewer-msg").hidden = false; $("viewer-msg").textContent = `Loading ${entry.name}…`;
+    let data;
+    try { data = await getBundle(entry); } catch (e) {
+      if (token === giantToken) $("viewer-msg").textContent = `Could not load ${entry.name}: ${e.message}`;
+      return;
+    }
+    if (token !== giantToken) return;
+    applyRegionMode(data);
+    attachHits(data);
+    giant.data = data;
+    giant.view = [0, data.length];
+    const img = new Image();
+    img.src = entry.strip;
+    img.decode().then(() => { if (giant.data === data) { giant.strip = img; drawTrack(); renderAttention(); } }, () => {});
+    const available = SCHEME_ORDER.filter((s) => data.models[s]?.length);
+    const preferred = saved?.scheme || giant.scheme;
+    giant.scheme = available.includes(preferred) ? preferred : (available.includes("w2000_s1000") ? "w2000_s1000" : available[available.length - 1] || "w2000_s1000");
+    const exact = saved && typeof saved.start === "number" ? giantModels().findIndex((mm) => mm.start === saved.start) : -1;
+    if (exact >= 0) giant.model = exact;
+    else {
+      const best = data.windows[data.best];
+      const primary = data.regions.find((r) => !r.further && r.window === data.best) || data.regions[0];
+      const centre = primary ? (primary.start + primary.end) / 2 : best ? (best.start + best.end) / 2 : 0;
+      giant.model = Math.max(0, modelIndexAt(centre));
+    }
+    if (!saved) {
+      const m = giantModel();
+      if (m) zoomTo(m.start - (m.end - m.start), m.end + (m.end - m.start));
+    }
+    renderScales();
+    renderAll();
+    drawTrack();
+    showStructure();
+    storeGiantPosition();
+  }
+
+  function storeGiantPosition() {
+    const m = giantModel(), entry = giantEntry();
+    if (entry) store.set("giant-position", JSON.stringify({ protein: entry.id, scheme: giant.scheme, start: m ? m.start : null }));
+  }
+
+  // The model at the current scale that holds `position` nearest its centre (else the nearest model).
+  function modelIndexAt(position) {
+    const models = giantModels();
+    let best = -1, bestCost = Infinity;
+    models.forEach((m, k) => {
+      const inside = position >= m.start && position < m.end;
+      const cost = Math.abs((m.start + m.end) / 2 - position) + (inside ? 0 : 1e9);
+      if (cost < bestCost) { bestCost = cost; best = k; }
+    });
+    return best;
+  }
+
+  function setModel(k, { follow = true } = {}) {
+    const models = giantModels();
+    if (!models.length) return;
+    giant.model = Math.max(0, Math.min(models.length - 1, k));
+    const m = giantModel();
+    picking = null; $("pick").setAttribute("aria-pressed", "false");
+    if (follow && (m.start < giant.view[0] || m.end > giant.view[1])) {
+      const span = Math.max(giant.view[1] - giant.view[0], (m.end - m.start) * 1.2);
+      const mid = (m.start + m.end) / 2;
+      setView(mid - span / 2, mid + span / 2);
+    }
+    storeGiantPosition();
+    renderForm(); renderGiantList(); drawTrack(); showStructure();
+  }
+  function stepModel(delta) { if (giantModels().length) setModel(giant.model + delta); }
+
+  function setScheme(scheme) {
+    if (!giant.data?.models[scheme]?.length) return;
+    const m = giantModel();
+    const centre = m ? (m.start + m.end) / 2 : (giant.view[0] + giant.view[1]) / 2;
+    giant.scheme = scheme;
+    giant.model = Math.max(0, modelIndexAt(centre));
+    renderScales();
+    setModel(giant.model);
+  }
+  function stepScale(delta) {
+    const available = SCHEME_ORDER.filter((s) => giant.data?.models[s]?.length);
+    if (!available.length) return;
+    const k = available.indexOf(giant.scheme);
+    setScheme(available[(k + delta + available.length) % available.length]);
+  }
+
+  function stepRegion(delta) {
+    const regions = giant.data?.regions || [];
+    if (!regions.length) return;
+    if (giant.regionCursor < 0) {
+      const m = giantModel();
+      const centre = m ? (m.start + m.end) / 2 : giant.view[0];
+      let k = regions.findIndex((r) => (r.start + r.end) / 2 >= centre);
+      if (k < 0) k = regions.length;
+      giant.regionCursor = delta > 0 ? k - 1 : k;
+    }
+    giant.regionCursor = (giant.regionCursor + delta + regions.length) % regions.length;
+    const region = regions[giant.regionCursor];
+    const pad = Math.max(400, (region.end - region.start) * 0.6);
+    zoomTo(region.start - pad, region.end + pad);
+    const cursor = giant.regionCursor;
+    setModel(modelIndexAt((region.start + region.end) / 2), { follow: false });
+    giant.regionCursor = cursor;
+    const label = `${region.further ? "Further" : "Primary"} region ${fmt(region.start + 1)}–${fmt(region.end)} · period ${region.period} aa · ${region.units.length} units`;
+    $("track-readout").textContent = `Region ${cursor + 1} of ${regions.length}: ${label}`;
+  }
+
+  function setView(a, b) {
+    const length = giant.data?.length || 1;
+    let span = Math.max(150, Math.min(length, b - a));
+    let start = Math.max(0, Math.min(length - span, a));
+    giant.view = [start, start + span];
+  }
+  function zoomTo(a, b) { setView(a, b); drawTrack(); }
+  function zoomBy(factor, around) {
+    const [a, b] = giant.view;
+    const at = around ?? (a + b) / 2;
+    setView(at - (at - a) * factor, at + (b - at) * factor);
+    drawTrack();
+  }
+
+  // ---------- giants: rendering ----------
+  function renderGiantList() {
+    renderListHead();
+    if (rankedList()) { renderRankedList(); return; }
+    const ol = $("list");
+    ol.textContent = "";
+    ol.dataset.view = "proteins";
+    if (!giant.index) return;
+    const counts = {};
+    for (const [, l] of giantLabels()) if (l.solenoid) counts[l.protein] = (counts[l.protein] || 0) + 1;
+    giant.index.proteins.forEach((p, i) => {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.title = p.id;
+      button.setAttribute("aria-current", String(i === giant.protein));
+      const n = counts[p.id] || 0;
+      button.innerHTML = `<span class="name"></span><span class="pill${n ? " yes" : ""}"></span><span class="len"></span><span class="sub"></span>`;
+      button.querySelector(".name").textContent = p.name;
+      button.querySelector(".pill").textContent = n ? `${n} call${n === 1 ? "" : "s"}` : "—";
+      button.querySelector(".len").textContent = `${(p.length / 1000).toFixed(1)} kaa · ${p.models ? `${p.models.toLocaleString()} models` : "no models"}`;
+      button.querySelector(".sub").textContent = `${p.regions} regions · top ${p.score.toFixed(2)}`;
+      button.addEventListener("click", () => selectGiant(i));
+      li.append(button);
+      ol.append(li);
+    });
+    const active = ol.querySelector('[aria-current="true"]');
+    if (active) revealInList(active);
+  }
+
+  // ---------- giants: window-gate trial (data/giants/window_gate.json) ----------
+  // Talea 0.3.1's regions or the trial gate's, plus every candidate the shown gate drops.
+  function applyRegionMode(data) {
+    if (!data) return;
+    data.regions031 ||= data.regions;
+    const t = giant.trial?.giants?.[data.header.id];
+    if (t && !data.trialRegions) {
+      data.trialRegions = t.regions.map(([start, end, period, further, window, meanState, wedge, flat, isNew]) => {
+        const units = [];
+        for (let k = 0; k + 1 < flat.length; k += 2) units.push([flat[k], flat[k + 1]]);
+        return { start, end, period, further: Boolean(further), window, meanState, wedge, units, isNew: Boolean(isNew) };
+      }).sort((a, b) => a.start - b.start || a.end - b.end);
+      data.candidates = t.candidates.map(([start, end, period, kind, window, meanState, wedge, score, kept031, keptTrial]) =>
+        ({ start, end, period, peeled: kind === 1, window, meanState, wedge, score, kept031: Boolean(kept031), keptTrial: Boolean(keptTrial) }));
+    }
+    const trial = giant.regionMode === "trial" && data.trialRegions;
+    data.regions = trial ? data.trialRegions : data.regions031;
+    data.dropped = (data.candidates || []).filter((c) => !(trial ? c.keptTrial : c.kept031));
+  }
+
+  function setRegionMode(mode) {
+    giant.regionMode = mode;
+    store.set("region-mode", mode);
+    if (giant.data) { applyRegionMode(giant.data); giant.regionCursor = -1; }
+    renderRegionMode(); drawTrack(); renderAttention();
+    if (giantMode()) applyColors(current());
+  }
+
+  function renderRegionMode() {
+    $("region-mode").hidden = !giant.trial;
+    $("regions-031").textContent = giant.index?.talea_version || "Talea";
+    $("regions-031").setAttribute("aria-pressed", String(giant.regionMode !== "trial"));
+    $("regions-trial").setAttribute("aria-pressed", String(giant.regionMode === "trial"));
+  }
+
+  // ---------- giants: models by Talea window score (data/giants/ranked.json) ----------
+  // One entry per stretch of sequence: sequential windows and near-identical copies in other giants fold into the
+  // higher-scoring model, and listed spans are left out (build/build_ranked_review.py).
+  const rankedList = () => Boolean(giant.ranked) && giant.listMode === "ranked";
+  const LABEL_PILL = { yes: "Solenoid", no: "Not", unsure: "Unsure" };
+
+  function renderListHead() {
+    $("list-head").hidden = !giant.ranked;
+    $("arrow-hint").textContent = rankedList() ? "next by score" : "model window";
+    if (!giant.ranked) return;
+    $("list-ranked").setAttribute("aria-pressed", String(rankedList()));
+    $("list-proteins").setAttribute("aria-pressed", String(!rankedList()));
+    $("list-caption").textContent = rankedList()
+      ? `${giant.ranked.length.toLocaleString()} models, highest Talea window score first`
+      : `${giant.index.proteins.length} giants, longest first`;
+  }
+
+  function setListMode(mode) {
+    giant.listMode = mode;
+    store.set("giant-list", mode);
+    renderGiantList();
+  }
+
+  // The entry for the 2,000-aa model on screen, else -1.
+  function rankedIndexOfCurrent() {
+    const entry = giantEntry(), m = giantModel();
+    if (!entry || !m || giant.scheme !== "w2000_s1000") return -1;
+    return giant.ranked.findIndex((it) => it.key === entry.key && it.start === m.start);
+  }
+
+  function rankedTitle(it, entry) {
+    const lines = [`${entry ? entry.name : it.key} · ${fmt(it.start + 1)}–${fmt(it.end)} · Talea window score ${it.score.toFixed(2)}`];
+    for (const [start, end, period, isNew] of it.calls) lines.push(`${isNew ? "New call" : "Call"} ${fmt(start + 1)}–${fmt(end)}, period ${period} aa`);
+    if (!it.calls.length) lines.push("No call in this model under the trial gate");
+    if (it.text) lines.push(`${it.source}: ${it.text}`);
+    for (const [key, start, end, score] of it.copies) {
+      lines.push(`Near-identical copy: ${giant.byKey.get(key)?.name || key} ${fmt(start + 1)}–${fmt(end)} (score ${score.toFixed(2)})`);
+    }
+    return lines.join("\n");
+  }
+
+  function renderRankedList() {
+    const ol = $("list");
+    if (ol.dataset.view !== "ranked") {
+      ol.textContent = "";
+      ol.dataset.view = "ranked";
+      const rows = document.createDocumentFragment();
+      giant.ranked.forEach((it, k) => {
+        const entry = giant.byKey.get(it.key);
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "ranked";
+        button.title = rankedTitle(it, entry);
+        button.innerHTML = `<span class="name"></span><span class="pill"></span><span class="len"></span><span class="sub"></span>`;
+        button.querySelector(".name").textContent = entry ? entry.name : it.key;
+        button.querySelector(".len").textContent = `${it.score.toFixed(2)} · ${fmt(it.start + 1)}–${fmt(it.end)}`;
+        const hit = !it.text ? "" : it.source === "Foldseek" ? `FS ${it.text}` : it.text;
+        button.querySelector(".sub").textContent = it.calls.length ? hit : hit ? `no call · ${hit}` : "no call";
+        button.addEventListener("click", () => openRanked(k));
+        li.append(button);
+        rows.append(li);
+      });
+      ol.append(rows);
+      ol.parentElement.scrollTop = 0;
+    }
+    const at = rankedIndexOfCurrent();
+    ol.querySelectorAll("button.ranked").forEach((button, k) => {
+      const it = giant.ranked[k];
+      const v = state.labels[`giants-${it.key}-w2000_s1000-${it.start}`]?.solenoid;
+      const pill = button.querySelector(".pill");
+      pill.className = `pill ${v || ""}`;
+      pill.textContent = v ? LABEL_PILL[v] : "—";
+      button.setAttribute("aria-current", String(k === at));
+    });
+    const active = ol.querySelector('[aria-current="true"]');
+    if (active) revealInList(active);
+  }
+
+  async function openRanked(k) {
+    const items = giant.ranked;
+    if (!items?.length) return;
+    giant.rankCursor = Math.max(0, Math.min(items.length - 1, k));
+    const it = items[giant.rankCursor];
+    const i = giant.index.proteins.findIndex((p) => p.key === it.key);
+    if (i < 0) return;
+    if (giant.trial && giant.regionMode !== "trial") setRegionMode("trial");
+    if (i !== giant.protein || !giant.data) {
+      await selectGiant(i, { scheme: "w2000_s1000", start: it.start });
+      if (giantEntry()?.key !== it.key || !giant.data) return;
+    } else {
+      if (giant.scheme !== "w2000_s1000") { giant.scheme = "w2000_s1000"; renderScales(); }
+      const m = giantModels().findIndex((mm) => mm.start === it.start);
+      if (m >= 0) setModel(m, { follow: false });
+    }
+    zoomTo(it.start - (it.end - it.start), it.end + (it.end - it.start));
+  }
+
+  function stepRanked(delta) {
+    const at = rankedIndexOfCurrent();
+    openRanked(at >= 0 ? at + delta : giant.rankCursor < 0 ? 0 : giant.rankCursor + delta);
+  }
+
+  function renderScales() {
+    const wrap = $("scales");
+    wrap.textContent = "";
+    for (const scheme of SCHEME_ORDER) {
+      const models = giant.data?.models[scheme] || [];
+      if (scheme === "w1500_s1000" && !models.length) continue;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = SCHEME_LABELS[scheme];
+      b.title = !models.length ? "No models at this scale"
+        : scheme === "w1500_s1000" ? `${models.length} models of 1,500 aa every 1,000 residues (the 1215_L_2 v2 refold)`
+        : `${models.length} models of ${SCHEME_LABELS[scheme]} aa`;
+      b.disabled = !models.length;
+      b.setAttribute("aria-pressed", String(scheme === giant.scheme));
+      b.addEventListener("click", () => setScheme(scheme));
+      wrap.append(b);
+    }
+  }
+
+  function updateGiantMeta() {
+    const entry = giantEntry(), data = giant.data;
+    $("track-title").textContent = entry ? entry.name : "Protein";
+    if (!entry || !data) { $("giant-meta").textContent = ""; return; }
+    const trial = giant.regionMode === "trial" && data.trialRegions;
+    const parts = [`${fmt(data.length)} aa`, `${data.windows.length} Talea windows`, `best ${data.score.toFixed(2)}`,
+      trial ? `${data.regions.length} regions in the trial gate (${data.regions.filter((r) => r.isNew).length} new; ${giant.index.talea_version || "Talea"} has ${data.regions031.length})`
+        : `${data.regions.length} regions`, `${data.header.models.length.toLocaleString()} models`];
+    if (entry.x_residues) parts.push(`${entry.x_residues} X (gap) residues`);
+    $("giant-meta").textContent = parts.join(" · ");
+  }
+
+  const TRACK_ROWS = { overview: [2, 12], ruler: [20, 16], score: [40, 30], state: [74, 30], ss: [108, 12], regions: [124, 26], strip: [154, 128], models: [286, 24] };
+  const GUTTER = 84;
+  const PLDDT_CSS = (b) => (b >= 90 ? "#0053d6" : b >= 70 ? "#65cbf3" : b >= 50 ? "#ffdb13" : "#ff7d45");
+
+  function meanOver(prefix, a, b) {
+    const lo = Math.max(0, Math.min(prefix.length - 1, Math.floor(a))), hi = Math.max(lo + 1, Math.min(prefix.length - 1, Math.ceil(b)));
+    return (prefix[hi] - prefix[lo]) / (hi - lo) / 255;
+  }
+
+  function drawTrack() {
+    const canvas = $("track");
+    updateGiantMeta();
+    if (!giantMode() || !canvas.clientWidth) return;
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+      canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
+    }
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    const col = (name) => cssVar(name);
+    const C = { fg: col("--fg"), muted: col("--muted"), line: col("--line"), accent: col("--accent"), primary: col("--region-primary"),
+      further: col("--region-further"), helix: col("--helix"), strand: col("--strand"), state: col("--state"), panel: col("--panel"),
+      yes: col("--yes"), no: col("--no"), unsure: col("--unsure") };
+    ctx.font = `11px ${col("--mono") || "monospace"}`;
+    ctx.textBaseline = "middle";
+    const data = giant.data;
+    const x0 = GUTTER, w = Math.max(10, width - GUTTER - 6);
+    const labels = [["overview", "protein"], ["score", "window score"], ["state", "U-Net state"], ["ss", "helix / strand"],
+      ["regions", "Talea regions"], ["strip", `attention L${giant.layer ? 35 : 13}`], ["models", `models ${SCHEME_LABELS[giant.scheme] || ""}`]];
+    ctx.fillStyle = C.muted;
+    for (const [row, text] of labels) { const [y, h] = TRACK_ROWS[row]; ctx.fillText(text, 2, y + h / 2); }
+    if (!data) { ctx.fillText("Loading…", x0 + 8, TRACK_ROWS.score[0] + 10); return; }
+    const L = data.length;
+    const [v0, v1] = giant.view;
+    const span = v1 - v0;
+    const X = (r) => x0 + ((r - v0) / span) * w;
+
+    // Overview: the whole protein, its regions, the view and the model on screen.
+    {
+      const [y, h] = TRACK_ROWS.overview;
+      const OX = (r) => x0 + (r / L) * w;
+      ctx.fillStyle = C.line; ctx.fillRect(x0, y + h / 2 - 1, w, 2);
+      for (const r of data.regions) { ctx.fillStyle = r.further ? C.further : C.primary; ctx.fillRect(OX(r.start), y + 2, Math.max(1, OX(r.end) - OX(r.start)), h - 4); }
+      ctx.strokeStyle = C.fg; ctx.lineWidth = 1.5; ctx.strokeRect(OX(v0), y + 0.5, Math.max(2, OX(v1) - OX(v0)), h - 1);
+      const m = giantModel();
+      if (m) { ctx.fillStyle = C.accent; ctx.fillRect(OX(m.start), y + h - 2, Math.max(2, OX(m.end) - OX(m.start)), 3); }
+    }
+    // Ruler, 1-based positions.
+    {
+      const [y] = TRACK_ROWS.ruler;
+      const raw = span / Math.max(1, w / 90);
+      const mag = 10 ** Math.floor(Math.log10(raw));
+      const step = [1, 2, 5, 10].map((f) => f * mag).find((s) => s >= raw) || 10 * mag;
+      ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.fillStyle = C.muted;
+      ctx.beginPath(); ctx.moveTo(x0, y + 1); ctx.lineTo(x0 + w, y + 1); ctx.stroke();
+      for (let p = Math.ceil((v0 + 1) / step) * step; p <= v1; p += step) {
+        const x = X(p - 0.5);
+        ctx.beginPath(); ctx.moveTo(x, y + 1); ctx.lineTo(x, y + 5); ctx.stroke();
+        const text = step >= 1000 ? `${p / 1000}k` : p.toLocaleString();
+        ctx.fillText(text, Math.min(x + 2, x0 + w - ctx.measureText(text).width), y + 11);
+      }
+    }
+    const m = giantModel();
+    // Everything below draws in view coordinates, clipped to the plot area so nothing spills into the labels.
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0, 0, w, height); ctx.clip();
+    // The model window on screen, shaded through the detail rows.
+    if (m) {
+      const a = Math.max(x0, X(m.start)), b = Math.min(x0 + w, X(m.end));
+      if (b > a) { ctx.globalAlpha = 0.1; ctx.fillStyle = C.accent; ctx.fillRect(a, TRACK_ROWS.score[0], b - a, TRACK_ROWS.models[0] + TRACK_ROWS.models[1] - TRACK_ROWS.score[0]); ctx.globalAlpha = 1; }
+    }
+    // Talea window scores, each over the stretch it owns.
+    {
+      const [y, h] = TRACK_ROWS.score;
+      const scores = data.windows.map((win) => win.score);
+      const lo = Math.min(...scores), hi = Math.max(...scores);
+      ctx.fillStyle = C.line; ctx.fillRect(x0, y + h - 1, w, 1);
+      for (const win of data.windows) {
+        if (win.ownEnd < v0 || win.ownStart > v1) continue;
+        const a = Math.max(x0, X(win.ownStart)), b = Math.min(x0 + w, X(win.ownEnd));
+        const bar = 3 + ((win.score - lo) / Math.max(hi - lo, 1e-6)) * (h - 4);
+        ctx.fillStyle = win.index === data.best ? C.accent : C.muted;
+        ctx.globalAlpha = win.index === data.best ? 1 : 0.55;
+        ctx.fillRect(a, y + h - bar, Math.max(1, b - a - 1), bar);
+        ctx.globalAlpha = 1;
+      }
+    }
+    // U-Net residue state (mean per pixel column), with Talea's 0.2 region gate.
+    {
+      const [y, h] = TRACK_ROWS.state;
+      ctx.beginPath(); ctx.moveTo(x0, y + h);
+      for (let px = 0; px <= w; px++) {
+        const r0 = v0 + (px / w) * span, r1 = v0 + ((px + 1) / w) * span;
+        ctx.lineTo(x0 + px, y + h - meanOver(data.statePrefix, r0, r1) * h);
+      }
+      ctx.lineTo(x0 + w, y + h); ctx.closePath();
+      ctx.globalAlpha = 0.35; ctx.fillStyle = C.state; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = C.state; ctx.lineWidth = 1; ctx.stroke();
+      ctx.setLineDash([3, 3]); ctx.strokeStyle = C.muted;
+      ctx.beginPath(); ctx.moveTo(x0, y + h - 0.2 * h); ctx.lineTo(x0 + w, y + h - 0.2 * h); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // Helix and strand probes (layer 35), per pixel column.
+    {
+      const [y, h] = TRACK_ROWS.ss;
+      const bin = data.ssBin;
+      for (let px = 0; px < w; px++) {
+        const r0 = (v0 + (px / w) * span) / bin, r1 = (v0 + ((px + 1) / w) * span) / bin;
+        ctx.globalAlpha = meanOver(data.helixPrefix, r0, r1); ctx.fillStyle = C.helix; ctx.fillRect(x0 + px, y, 1, h / 2 - 0.5);
+        ctx.globalAlpha = meanOver(data.strandPrefix, r0, r1); ctx.fillStyle = C.strand; ctx.fillRect(x0 + px, y + h / 2, 1, h / 2);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // Talea's regions (primary above, further below) and, once wide enough, their units. Candidates the shown gate
+    // drops are dashed outlines (other windows' primary regions above, peeled calls below); regions new in the trial
+    // gate carry an accent outline.
+    {
+      const [y, h] = TRACK_ROWS.regions;
+      ctx.save(); ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.setLineDash([3, 2]); ctx.globalAlpha = 0.7;
+      for (const c of data.dropped || []) {
+        if (c.end < v0 || c.start > v1) continue;
+        const cy = c.peeled ? y + h / 2 + 1 : y + 1, a = X(c.start), b = X(c.end);
+        ctx.strokeRect(a + 0.5, cy + 0.5, Math.max(1, b - a - 1), h / 2 - 3);
+      }
+      ctx.restore();
+      for (const r of data.regions) {
+        if (r.end < v0 || r.start > v1) continue;
+        const ry = r.further ? y + h / 2 + 1 : y + 1, rh = h / 2 - 2;
+        const a = X(r.start), b = X(r.end);
+        ctx.fillStyle = r.further ? C.further : C.primary;
+        ctx.globalAlpha = 0.85; ctx.fillRect(a, ry, Math.max(1.5, b - a), rh); ctx.globalAlpha = 1;
+        if (r.isNew) { ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.strokeRect(a + 0.75, ry + 0.75, Math.max(1, b - a - 1.5), rh - 1.5); }
+        const unitPx = r.units.length ? (b - a) / r.units.length : 0;
+        if (unitPx >= 4) {
+          r.units.forEach(([us, ue], k) => {
+            if (k % 2) return;
+            ctx.fillStyle = C.panel; ctx.globalAlpha = 0.45;
+            ctx.fillRect(X(us), ry + 2, Math.max(1, X(ue) - X(us)), rh - 4); ctx.globalAlpha = 1;
+          });
+        }
+        if (b - a > 34) { ctx.fillStyle = C.panel; ctx.fillText(`${r.period}`, Math.max(a, x0) + 3, ry + rh / 2 + 0.5); }
+      }
+    }
+    // Attention near the diagonal: x is the pair midpoint, down is the distance between the residues (0-300).
+    {
+      const [y, h] = TRACK_ROWS.strip;
+      ctx.fillStyle = "#000004"; ctx.fillRect(x0, y, w, h);
+      const meta = data.header.strip;
+      if (giant.strip) {
+        const sx = v0 / meta.x_bin, sw = span / meta.x_bin;
+        const cx0 = Math.max(0, sx), cx1 = Math.min(meta.columns, sx + sw);
+        if (cx1 > cx0) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.drawImage(giant.strip, cx0, giant.layer * meta.rows_per_layer, cx1 - cx0, meta.rows_per_layer,
+            x0 + ((cx0 - sx) / sw) * w, y, ((cx1 - cx0) / sw) * w, h);
+        }
+      } else { ctx.fillStyle = C.muted; ctx.fillText("Loading attention…", x0 + 8, y + 12); }
+    }
+    // Models at the chosen scale: even and odd windows on two rows, coloured by mean pLDDT.
+    {
+      const [y, h] = TRACK_ROWS.models;
+      const models = giantModels();
+      const called = {};
+      const entry = giantEntry();
+      for (const [, l] of giantLabels()) if (l.protein === entry.id && l.scheme === giant.scheme && l.solenoid) called[l.start - 1] = l.solenoid;
+      models.forEach((mm, k) => {
+        if (mm.end < v0 || mm.start > v1) return;
+        const ry = y + (k % 2 ? h / 2 + 1 : 0), rh = h / 2 - 1;
+        const a = X(mm.start), b = X(mm.end);
+        ctx.globalAlpha = mm.mode === "msa_free" ? 0.45 : 0.9;
+        ctx.fillStyle = PLDDT_CSS(mm.plddt); ctx.fillRect(a + 0.5, ry, Math.max(1, b - a - 1), rh);
+        ctx.globalAlpha = 1;
+        if (called[mm.start]) { ctx.fillStyle = C[called[mm.start]]; ctx.beginPath(); ctx.arc(Math.max(a, x0) + 5, ry + rh / 2, 3, 0, 2 * Math.PI); ctx.fill(); }
+        if (k === giant.model) { ctx.strokeStyle = C.fg; ctx.lineWidth = 2; ctx.strokeRect(a + 1, ry + 0.5, Math.max(2, b - a - 2), rh - 1); }
+      });
+      if (!models.length) { ctx.fillStyle = C.muted; ctx.fillText("no models at this scale", x0 + 8, y + h / 2); }
+    }
+    // Hover line.
+    if (giant.hover !== null && giant.hover >= v0 && giant.hover <= v1) {
+      ctx.strokeStyle = C.fg; ctx.globalAlpha = 0.6; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(X(giant.hover), TRACK_ROWS.score[0]); ctx.lineTo(X(giant.hover), TRACK_ROWS.models[0] + TRACK_ROWS.models[1]); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    // Row annotations that sit in the label gutter.
+    ctx.fillStyle = C.muted;
+    {
+      const scores = data.windows.map((win) => win.score);
+      const [y, h] = TRACK_ROWS.score;
+      ctx.fillText(`${Math.min(...scores).toFixed(2)}–${Math.max(...scores).toFixed(2)}`, 2, y + h - 4);
+      const meta = data.header.strip;
+      const [sy, sh] = TRACK_ROWS.strip;
+      ctx.fillText("lag 0", 2, sy + 22); ctx.fillText(`${meta.lags} aa`, 2, sy + sh - 6);
+    }
+  }
+
+  function trackPosition(event) {
+    const rect = $("track").getBoundingClientRect();
+    const x = event.clientX - rect.left, y = event.clientY - rect.top;
+    const w = Math.max(10, rect.width - GUTTER - 6);
+    const overview = y < TRACK_ROWS.ruler[0];
+    const L = giant.data?.length || 1;
+    const fraction = Math.max(0, Math.min(1, (x - GUTTER) / w));
+    return { overview, x, y, position: overview ? fraction * L : giant.view[0] + fraction * (giant.view[1] - giant.view[0]), w };
+  }
+
+  function describePosition(p) {
+    const data = giant.data;
+    if (!data) return "";
+    const r = Math.max(0, Math.min(data.length - 1, Math.floor(p)));
+    const parts = [`residue ${fmt(r + 1)} ${data.header.sequence[r] || ""}`, `state ${(data.state[r] / 255).toFixed(2)}`];
+    const bin = Math.floor(r / data.ssBin);
+    if (bin < data.helix.length) parts.push(`helix ${(data.helix[bin] / 255).toFixed(2)} strand ${(data.strand[bin] / 255).toFixed(2)}`);
+    for (const region of data.regions) if (r >= region.start && r < region.end) {
+      parts.push(`${region.further ? "further" : "primary"} region ${fmt(region.start + 1)}–${fmt(region.end)}, period ${region.period}, ${region.units.length} units`);
+    }
+    const win = data.windows.find((x) => r >= x.ownStart && r < x.ownEnd);
+    if (win) parts.push(`window ${fmt(win.start + 1)}–${fmt(win.end)} score ${win.score.toFixed(2)}`);
+    const k = modelIndexAt(r);
+    const mm = giantModels()[k];
+    if (mm && r >= mm.start && r < mm.end) parts.push(`model ${fmt(mm.start + 1)}–${fmt(mm.end)} pLDDT ${mm.plddt.toFixed(0)}${mm.ptm != null ? ` pTM ${mm.ptm.toFixed(2)}` : ""}`);
+    return parts.join(" · ");
+  }
+
+  function renderGiantAttention() {
+    renderHitPanel();
+    const body = $("att-body");
+    body.textContent = "";
+    const data = giant.data, m = giantModel();
+    if (!data) { body.textContent = "Loading…"; return; }
+    if (!m) {
+      const p = document.createElement("p");
+      p.className = "hint";
+      p.textContent = "No model window here; the track above carries Talea's calls and attention along the whole protein.";
+      body.append(p);
+      return;
+    }
+    const cols = document.createElement("div");
+    cols.className = "att-cols";
+    cols.innerHTML = "<span></span><span></span>";
+    cols.children[0].textContent = `Layer 13 · ${fmt(m.start + 1)}–${fmt(m.end)}`;
+    cols.children[1].textContent = `Layer 35 · pairs up to ${data.header.strip.lags} aa apart`;
+    const canvas = document.createElement("canvas");
+    canvas.className = "att-canvas";
+    canvas.setAttribute("role", "img");
+    canvas.setAttribute("aria-label", `Talea attention for residues ${m.start + 1} to ${m.end}, layers 13 and 35, pairs up to 300 residues apart`);
+    body.append(cols, canvas, giantRegionList(m));
+    requestAnimationFrame(() => drawGiantSquares(canvas, m));
+  }
+
+  // The attention strip is the near-diagonal band of each window's matrix, sheared: strip column = pair midpoint / x_bin,
+  // strip row = residue separation / lag_step. Drawing it through the inverse shear rebuilds the matrix band for the model window.
+  function drawGiantSquares(canvas, m) {
+    const data = giant.data;
+    if (!data || giantModel() !== m) return;
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = canvas.clientWidth || 640;
+    const gap = 8, panel = (cssWidth - gap) / 2;
+    canvas.width = Math.round(cssWidth * dpr); canvas.height = Math.round(panel * dpr);
+    canvas.style.height = `${panel}px`;
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = cssVar("--panel"); ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const meta = data.header.strip;
+    const s = m.start, n = m.end - m.start, k = panel / n;
+    const half = (meta.lag_step / 2) * k;
+    const c0 = Math.max(0, Math.floor(s / meta.x_bin) - 2), c1 = Math.min(meta.columns, Math.ceil(m.end / meta.x_bin) + 2);
+    [0, 1].forEach((layer) => {
+      const ox = layer * (panel + gap);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(ox, 0, panel, panel); ctx.clip();
+      ctx.fillStyle = "#000004"; ctx.fillRect(ox, 0, panel, panel);
+      if (giant.strip && c1 > c0) {
+        ctx.imageSmoothingEnabled = true;
+        for (const sign of [1, -1]) {
+          // (column c, row r) -> x = ox + (x_bin c + sign lag_step r / 2 - s) k, y = (x_bin c - sign lag_step r / 2 - s) k
+          ctx.setTransform(meta.x_bin * k * dpr, meta.x_bin * k * dpr, sign * half * dpr, -sign * half * dpr, (ox - s * k) * dpr, (-s * k) * dpr);
+          ctx.drawImage(giant.strip, c0, layer * meta.rows_per_layer, c1 - c0, meta.rows_per_layer, c0, 0, c1 - c0, meta.rows_per_layer);
+        }
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if ($("overlay").checked) {
+        const square = (a, b, stroke, width, dash, alpha) => {
+          const lo = Math.max(a, s), hi = Math.min(b, m.end);
+          if (hi <= lo) return;
+          ctx.globalAlpha = alpha; ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.setLineDash(dash);
+          ctx.strokeRect(ox + (lo - s) * k, (lo - s) * k, Math.max(1, (hi - lo) * k), Math.max(1, (hi - lo) * k));
+          ctx.globalAlpha = 1; ctx.setLineDash([]);
+        };
+        for (const r of data.regions) {
+          if (r.end <= s || r.start >= m.end) continue;
+          for (const [us, ue] of r.units) square(us, ue, "#ffffff", 1, [], 0.55);
+          square(r.start, r.end, r.further ? cssVar("--call-further") : cssVar("--call-primary"), 2, r.further ? [5, 4] : [], 1);
+        }
+      }
+      ctx.restore();
+    });
+    if (!giant.strip) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#93a1ad"; ctx.font = "12px sans-serif"; ctx.fillText("Loading attention…", 12, 20);
+    }
+  }
+
+  function giantRegionList(m) {
+    const data = giant.data;
+    const wrap = document.createElement("div");
+    const head = document.createElement("h3");
+    head.textContent = giant.regionMode === "trial" && data.trialRegions ? "Talea regions in this model (trial gate)"
+      : `Talea ${giant.index.talea_version || ""} regions in this model`.replace("  ", " ");
+    wrap.append(head);
+    const regions = data.regions.filter((r) => r.end > m.start && r.start < m.end);
+    const ol = document.createElement("ol");
+    ol.className = "regions";
+    for (const r of regions) {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="swatch${r.further ? " further" : ""}"></span><span class="mono"></span><span class="meta"></span>`;
+      li.children[1].textContent = `${fmt(r.start + 1)}–${fmt(r.end)}`;
+      const source = data.windows[r.window];
+      li.children[2].textContent = `${r.further ? "further" : "primary"} · period ${r.period} aa · ${r.units.length} unit${r.units.length === 1 ? "" : "s"} · state ${r.meanState.toFixed(2)}`
+        + (source ? ` · from window ${fmt(source.start + 1)}–${fmt(source.end)} (score ${source.score.toFixed(2)})` : "");
+      ol.append(li);
+    }
+    if (!regions.length) {
+      const p = document.createElement("p");
+      p.className = "hint";
+      p.textContent = "Talea places no repeat region in this model window.";
+      wrap.append(p);
+    } else wrap.append(ol);
+    const covering = data.windows.filter((x) => x.start < m.end && x.end > m.start);
+    const note = document.createElement("p");
+    note.className = "hint";
+    const modelNote = `Model: mean pLDDT ${m.plddt.toFixed(0)}${m.ptm != null ? `, pTM ${m.ptm.toFixed(2)}` : ""}${m.mode ? `, ${m.mode.replace(/_/g, " ")}` : ""}${m.substitutions ? `, folded sequence differs at ${m.substitutions} position${m.substitutions === 1 ? "" : "s"}` : ""}.`;
+    note.textContent = `${modelNote} Talea windows over it: ${covering.map((x) => `${fmt(x.start + 1)}–${fmt(x.end)} (${x.score.toFixed(2)})`).join(", ")}. `
+      + (giant.regionMode === "trial" && data.trialRegions
+        ? "Every window registers a primary region; in the trial gate, windows other than the best keep theirs at window score ≥ 1.5 and wedge score ≥ 12."
+        : "Every window registers a primary region; windows other than the best keep theirs only at mean state ≥ 0.2 and wedge score ≥ 12.");
+    wrap.append(note);
+    return wrap;
+  }
+
+  // Pfam, CDD and Foldseek hits for a giant (data/giants/hits.json): observed per-domain hits, no family call.
+  function attachHits(data) {
+    if (!data || data.domainHits || !giant.hits) return;
+    const h = giant.hits.giants[data.header.id];
+    if (!h) return;
+    const text = giant.hits.descriptions;
+    data.domainHits = h.domains.map(([source, start, end, family, description, evalue, score]) =>
+      ({ source, start, end, family, description, evalue, score }));
+    data.foldseekHits = h.foldseek.map(([start, end, target, d, evalue, bits, identity, window]) =>
+      ({ start, end, target, description: text[d], evalue, bits, identity, window }));
+  }
+
+  const fmtE = (x) => (x == null ? "" : x === 0 ? "0" : x.toExponential(1));
+
+  // Sidebar list of the hits that overlap the model on screen: Pfam and CDD domains by position, then Foldseek hits
+  // strongest first (one per target description where spans overlap). Clicking a hit marks its span on the model.
+  function renderHitPanel() {
+    const list = $("hits-list"), note = $("hits-note");
+    list.textContent = "";
+    const data = giant.data, m = giantModel(), it = current();
+    if (!data || !m || !it) { note.textContent = ""; return; }
+    if (!data.domainHits) { note.textContent = giant.hits ? "No hit table for this giant." : "Loading hits…"; return; }
+    const domains = data.domainHits.filter((d) => d.end > m.start && d.start < m.end);
+    const kept = [];
+    for (const f of data.foldseekHits.filter((x) => x.end > m.start && x.start < m.end).sort((a, b) => b.bits - a.bits)) {
+      const same = kept.some((k) => k.description === f.description
+        && Math.min(k.end, f.end) - Math.max(k.start, f.start) >= 0.5 * Math.min(k.end - k.start, f.end - f.start));
+      if (!same) kept.push(f);
+    }
+    const rows = [
+      ...domains.map((d) => ({ tag: d.source, name: d.family, title: d.description || d.family, start: d.start, end: d.end,
+        stats: d.evalue != null ? `E ${fmtE(d.evalue)}` : "" })),
+      ...kept.map((f) => ({ tag: "Foldseek", name: f.description || f.target, title: `${f.description || ""} (${f.target})`,
+        start: f.start, end: f.end, stats: `bits ${Math.round(f.bits)} · E ${fmtE(f.evalue)}`,
+        accession: (f.target.match(/^AF-(.+?)-F\d+/) || [])[1] })),
+    ];
+    for (const row of rows) {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.title = row.title;
+      const marked = giant.highlight?.model === it.id && giant.highlight.start === row.start && giant.highlight.end === row.end;
+      b.setAttribute("aria-pressed", String(marked));
+      b.innerHTML = '<span class="tag"></span><span class="name"></span><span class="sub"></span>';
+      b.children[0].textContent = row.tag === "Foldseek" ? "FS" : row.tag;
+      b.children[0].className = `tag ${row.tag.toLowerCase()}`;
+      b.children[1].textContent = row.name;
+      b.children[2].textContent = [`${fmt(row.start + 1)}–${fmt(row.end)}`, row.stats].filter(Boolean).join(" · ");
+      b.addEventListener("click", () => {
+        giant.highlight = marked ? null : { model: it.id, start: row.start, end: row.end, color: cssVar(`--hit-${row.tag.toLowerCase()}`) };
+        applyColors(current());
+        renderHitPanel();
+      });
+      li.append(b);
+      if (row.accession) {
+        const a = document.createElement("a");
+        a.href = `https://alphafold.ebi.ac.uk/entry/${row.accession}`;
+        a.target = "_blank"; a.rel = "noopener";
+        a.textContent = "AF↗";
+        a.title = `Open ${row.accession} in AlphaFold DB`;
+        li.append(a);
+      }
+      list.append(li);
+    }
+    note.textContent = rows.length
+      ? "Click a hit to mark its span on the model. Pfam-A 32.0 and CDD from the giant annotation table; Foldseek against AlphaFold DB, E ≤ 0.01."
+      : "No Pfam, CDD or Foldseek hit overlaps this model.";
+  }
+
+  async function showGiantStructure() {
+    const msg = $("viewer-msg");
+    const data = giant.data, m = giantModel(), entry = giantEntry();
+    if (!data || !entry) { msg.hidden = false; msg.textContent = entry ? `Loading ${entry.name}…` : "Loading giants…"; return; }
+    renderScales();
+    if (!m) {
+      if (viewer) { viewer.clear(); viewer.render(); }
+      msg.hidden = false;
+      msg.textContent = data.header.models.length ? "No model at this scale here." : "No Protenix models for this giant: the track carries Talea's calls and attention.";
+      return;
+    }
+    const key = `${entry.id}|${m.scheme}|${m.start}`;
+    let text = pdbCache.get(key);
+    if (!text) {
+      text = modelPdb(data, m);
+      pdbCache.set(key, text);
+      while (pdbCache.size > 8) pdbCache.delete(pdbCache.keys().next().value);
+    }
+    const v = ensureViewer();
+    if (!v) { msg.textContent = "The 3D viewer library did not load. Reload the page to try again."; return; }
+    v.clear();
+    v.addModel(text, "pdb");
+    applyColors(current());
+    v.setHoverable({}, true,
+      (atom) => { $("readout").textContent = `Residue ${fmt(m.start + atom.resi)} ${atom.resn} · pLDDT ${Math.round(atom.b)}`; },
+      () => {});
+    v.setClickable({}, true, (atom) => pickResidue(m.start + atom.resi));
+    v.zoomTo();
+    v.render();
+    if (spinning) v.spin("y", 0.6);
+    msg.hidden = true;
+  }
+
+  function giantTaleaColors(it) {
+    const colors = new Map();
+    for (const r of giant.data?.regions || []) {
+      if (r.end <= it.start || r.start >= it.end) continue;
+      const palette = UNIT_COLORS[r.further ? "further" : "primary"];
+      for (let p = Math.max(r.start, it.start); p < Math.min(r.end, it.end); p++) {
+        if (!colors.has(p - it.start + 1)) colors.set(p - it.start + 1, GAP_RES);
+      }
+      r.units.forEach(([us, ue], k) => {
+        for (let p = Math.max(us, it.start); p < Math.min(ue, it.end); p++) colors.set(p - it.start + 1, palette[k % 2]);
+      });
+    }
+    return colors;
+  }
+
+  function wireGiants() {
+    $("regions-031").addEventListener("click", () => setRegionMode("031"));
+    $("regions-trial").addEventListener("click", () => setRegionMode("trial"));
+    $("list-ranked").addEventListener("click", () => setListMode("ranked"));
+    $("list-proteins").addEventListener("click", () => setListMode("proteins"));
+    const canvas = $("track");
+    let drag = null;
+    canvas.addEventListener("pointerdown", (e) => {
+      if (!giant.data) return;
+      const at = trackPosition(e);
+      drag = { x: e.clientX, view: [...giant.view], moved: false, overview: at.overview, w: at.w };
+      canvas.setPointerCapture(e.pointerId);
+      if (at.overview) { const span = giant.view[1] - giant.view[0]; zoomTo(at.position - span / 2, at.position + span / 2); }
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!giant.data) return;
+      const at = trackPosition(e);
+      if (drag) {
+        if (drag.overview) { const span = giant.view[1] - giant.view[0]; zoomTo(at.position - span / 2, at.position + span / 2); return; }
+        const dx = e.clientX - drag.x;
+        if (Math.abs(dx) > 3) { drag.moved = true; canvas.classList.add("dragging"); }
+        if (drag.moved) { const shift = (-dx / drag.w) * (drag.view[1] - drag.view[0]); setView(drag.view[0] + shift, drag.view[1] + shift); drawTrack(); }
+        return;
+      }
+      giant.hover = at.overview ? null : at.position;
+      $("track-readout").textContent = at.overview ? "Click or drag to move the view along the protein" : describePosition(at.position);
+      drawTrack();
+    });
+    const end = (e) => {
+      if (!drag) return;
+      const wasClick = !drag.moved && !drag.overview;
+      drag = null; canvas.classList.remove("dragging");
+      if (wasClick && giant.data) {
+        const at = trackPosition(e);
+        if (at.y >= TRACK_ROWS.score[0]) { giant.regionCursor = -1; setModel(modelIndexAt(at.position), { follow: false }); }
+      }
+    };
+    canvas.addEventListener("pointerup", end);
+    canvas.addEventListener("pointercancel", () => { drag = null; canvas.classList.remove("dragging"); });
+    canvas.addEventListener("pointerleave", () => { if (!drag) { giant.hover = null; drawTrack(); } });
+    canvas.addEventListener("wheel", (e) => {
+      if (!giant.data) return;
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        zoomBy(Math.exp(e.deltaY * 0.01), trackPosition(e).position);
+      } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault();
+        const span = giant.view[1] - giant.view[0];
+        const shift = (e.deltaX / trackPosition(e).w) * span;
+        zoomTo(giant.view[0] + shift, giant.view[1] + shift);
+      }
+    }, { passive: false });
+    $("zoom-in").addEventListener("click", () => zoomBy(0.5));
+    $("zoom-out").addEventListener("click", () => zoomBy(2));
+    $("zoom-all").addEventListener("click", () => { if (giant.data) zoomTo(0, giant.data.length); });
+    $("zoom-model").addEventListener("click", () => { const m = giantModel(); if (m) { const pad = (m.end - m.start) * 0.15; zoomTo(m.start - pad, m.end + pad); } });
+    $("prev-region").addEventListener("click", () => stepRegion(-1));
+    $("next-region").addEventListener("click", () => stepRegion(1));
+    $("prev-model").addEventListener("click", () => stepModel(-1));
+    $("next-model").addEventListener("click", () => stepModel(1));
+    const setLayer = (layer) => {
+      giant.layer = layer;
+      store.set("giant-layer", String(layer));
+      $("strip-13").setAttribute("aria-pressed", String(layer === 0));
+      $("strip-35").setAttribute("aria-pressed", String(layer === 1));
+      drawTrack();
+    };
+    $("strip-13").addEventListener("click", () => setLayer(0));
+    $("strip-35").addEventListener("click", () => setLayer(1));
+    setLayer(store.get("giant-layer") === "0" ? 0 : 1);
+    new ResizeObserver(() => { if (giantMode()) { drawTrack(); const c = $("att-body").querySelector("canvas"); if (c && giantModel()) drawGiantSquares(c, giantModel()); } }).observe($("track"));
+  }
+
+  // ---------- wiring ----------
+  function wire() {
+    for (const b of $("solenoid").querySelectorAll("button")) b.addEventListener("click", () => setSolenoid(b.dataset.v));
+    FOLDS.forEach(([value, text], k) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.dataset.v = value; b.setAttribute("aria-pressed", "false");
+      b.innerHTML = `<span></span><kbd>${k + 1}</kbd>`;
+      b.firstChild.textContent = text;
+      b.addEventListener("click", () => setFold(value));
+      $("fold").append(b);
+    });
+    $("residues").addEventListener("input", () => saveField({ residues: $("residues").value }, 700));
+    $("residues").addEventListener("change", () => saveField({ residues: $("residues").value }));
+    $("notes").addEventListener("input", () => saveField({ notes: $("notes").value }, 900));
+    $("notes").addEventListener("change", () => saveField({ notes: $("notes").value }));
+    $("prev").addEventListener("click", () => select(state.index - 1));
+    $("next").addEventListener("click", () => select(state.index + 1));
+    $("next-unlabeled").addEventListener("click", nextUnlabeled);
+    $("reset-view").addEventListener("click", () => { if (viewer) { viewer.zoomTo(); viewer.render(); } });
+    $("spin").addEventListener("click", () => {
+      spinning = !spinning;
+      $("spin").setAttribute("aria-pressed", String(spinning));
+      if (viewer) viewer.spin(spinning ? "y" : false, 0.6);
+    });
+    $("pick").addEventListener("click", () => {
+      picking = picking ? null : { start: null };
+      $("pick").setAttribute("aria-pressed", String(Boolean(picking)));
+      $("pick-hint").textContent = picking ? "Click the first residue of the repeat region." : "Pick in 3D, then click the first and last residue.";
+    });
+    $("blind").checked = store.get("blind") === "1";
+    $("overlay").checked = store.get("overlay") !== "0";
+    $("blind").addEventListener("change", () => { store.set("blind", $("blind").checked ? "1" : "0"); renderAttention(); applyColors(current()); });
+    $("overlay").addEventListener("change", () => { store.set("overlay", $("overlay").checked ? "1" : "0"); renderAttention(); });
+    state.colorMode = store.get("color-mode") === "talea" ? "talea" : "plddt";
+    const setMode = (mode) => { state.colorMode = mode; store.set("color-mode", mode); applyColors(current()); };
+    $("color-plddt").addEventListener("click", () => setMode("plddt"));
+    $("color-talea").addEventListener("click", () => setMode("talea"));
+    $("copy-tsv").addEventListener("click", () => {
+      const tsv = labelsTsv();
+      const fallback = () => { $("tsv").value = tsv; $("tsv-wrap").hidden = false; $("tsv").select(); };
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(tsv).then(() => { $("copy-tsv").textContent = "Copied"; setTimeout(() => { $("copy-tsv").textContent = "Copy labels (TSV)"; }, 1600); }, fallback);
+      } else { fallback(); }
+    });
+    document.addEventListener("keydown", (e) => {
+      const tag = (e.target.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "y") setSolenoid("yes");
+      else if (k === "n") setSolenoid("no");
+      else if (k === "u") setSolenoid("unsure");
+      else if (k >= "1" && k <= String(FOLDS.length)) setFold(FOLDS[Number(k) - 1][0]);
+      else if (e.key === "ArrowRight" || k === "j") select(state.index + 1);
+      else if (e.key === "ArrowLeft" || k === "k") select(state.index - 1);
+      else if (k === "." && !giantMode()) nextUnlabeled();
+      else if (k === "]" && giantMode()) stepRegion(1);
+      else if (k === "[" && giantMode()) stepRegion(-1);
+      else if (k === "s" && giantMode()) stepScale(e.shiftKey ? -1 : 1);
+      else return;
+      e.preventDefault();
+    });
+    const isDark = () => {
+      const theme = document.documentElement.getAttribute("data-theme");
+      return theme ? theme === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    };
+    const syncThemeButton = () => { $("theme").textContent = isDark() ? "Light mode" : "Dark mode"; };
+    const themeChange = () => {
+      syncThemeButton();
+      if (viewer) { viewer.setBackgroundColor(cssVar("--viewer-bg")); viewer.render(); }
+      if (giantMode()) { drawTrack(); renderAttention(); }
+    };
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", themeChange);
+    new MutationObserver(themeChange).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    const savedTheme = store.get("theme");
+    if (savedTheme === "light" || savedTheme === "dark") document.documentElement.setAttribute("data-theme", savedTheme);
+    syncThemeButton();
+    $("theme").addEventListener("click", () => {
+      const next = isDark() ? "light" : "dark";
+      store.set("theme", next);
+      document.documentElement.setAttribute("data-theme", next);
+    });
+  }
+
+  async function start(saved) {
+    wire();
+    wireGiants();
+    renderAll();
+    try {
+      const giantsRes = fetch("data/giants/index.json").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      const setsRes = fetch("data/sets.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+      const res = await fetch("data/manifest.json");
+      state.manifest = res.ok ? await res.json() : { sets: {} };
+      try {
+        const callsRes = await fetch("data/talea_calls.json");
+        if (callsRes.ok) { const payload = await callsRes.json(); state.calls = payload.calls || {}; state.taleaVersion = payload.talea_version || ""; }
+      } catch { /* the page still works without Talea's calls */ }
+      const index = await giantsRes;
+      const sets = await setsRes;
+      for (const id of [...Object.keys(sets), ...Object.keys(state.manifest.sets), "giants"]) {
+        if (SETS[id] || !(state.manifest.sets[id] || (id === "giants" && index?.proteins?.length))) continue;
+        SETS[id] = { title: sets[id]?.title || (id === "giants" ? "Giants" : id), about: sets[id]?.about || "" };
+      }
+      if (index?.proteins?.length) {
+        index.proteins.forEach((p) => { p.key = p.bundle.split("/").pop().replace(/\.[a-z]+$/, ""); });
+        index.proteins.sort((a, b) => b.length - a.length);
+        giant.index = index;
+        giant.byKey = new Map(index.proteins.map((p) => [p.key, p]));
+        fetch("data/giants/ranked.json").then((r) => (r.ok ? r.json() : null)).then((ranked) => {
+          if (!ranked?.items?.length) return;
+          giant.ranked = ranked.items.map(([key, start, end, score, calls, source, text, copies]) =>
+            ({ key, start, end, score, calls, source, text, copies }));
+          giant.listMode = store.get("giant-list") === "proteins" ? "proteins" : "ranked";
+          if (giantMode()) renderGiantList();
+        }).catch(() => { /* the protein list works without the ranking */ });
+        fetch("data/giants/window_gate.json").then((r) => (r.ok ? r.json() : null)).then((trial) => {
+          if (!trial?.giants) return;
+          giant.trial = trial;
+          giant.regionMode = store.get("region-mode") === "031" ? "031" : "trial";
+          if (giant.data) applyRegionMode(giant.data);
+          renderRegionMode(); drawTrack(); renderAttention();
+          if (giantMode()) applyColors(current());
+        }).catch(() => { /* the bench works without the trial overlay */ });
+        fetch("data/giants/hits.json").then((r) => (r.ok ? r.json() : null)).then((hits) => {
+          if (!hits?.giants) return;
+          giant.hits = hits;
+          if (giant.data) attachHits(giant.data);
+          drawTrack(); renderAttention();
+        }).catch(() => { /* the bench works without the hit overlay */ });
+      }
+    } catch (e) {
+      $("current-name").textContent = "Could not load the protein list";
+      $("viewer-msg").textContent = `The review data did not load (${e.message}). Reload the page.`;
+      return;
+    }
+    let position = saved && saved.set ? saved : null;
+    if (!position) { try { position = JSON.parse(store.get("position") || "null"); } catch { position = null; } }
+    const hash = (location.hash || "").slice(1);
+    if (state.manifest.sets[hash] || (hash === "giants" && giant.index)) position = { set: hash, index: 0 };
+    const first = Object.keys(state.manifest.sets)[0];
+    if (!first && !giant.index) {
+      $("viewer-msg").textContent = "No review data here: data/ holds neither manifest.json nor giants/index.json (see docs/data-format.md).";
+      return;
+    }
+    if (!first) position = { set: "giants", index: 0 };
+    connectDb();
+    if (position?.set === "giants" && giant.index) { selectSet("giants"); return; }
+    if (position && state.manifest.sets[position.set]) { state.set = position.set; state.index = Math.min(position.index || 0, state.manifest.sets[position.set].length - 1); }
+    else state.set = first;
+    renderAll();
+    showStructure();
+  }
+
+  window.claude?.hot?.snapshot?.(() => ({ set: state.set, index: state.index }));
+  window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+</script>

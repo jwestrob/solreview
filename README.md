@@ -1,0 +1,61 @@
+# solreview
+
+The Solenoid Review Bench is a browser page for checking predicted protein structures against
+[Talea](https://github.com/jwestrob/Talea)'s repeat calls. For each model you record a solenoid call (yes, no or
+unsure), a fold class, the repeat residues and notes.
+
+- **Review sets** show one model per protein beside Talea's layer-13 and layer-35 attention maps. Blind mode keeps
+  Talea's regions hidden until you have made the call.
+- **Giants** shows long proteins that Talea scored in 2,000-aa windows. Each protein has:
+  - a whole-protein track with Talea's windows and regions, the attention band and the residue state;
+  - the folded models at every window size;
+  - the Pfam, CDD and Foldseek hits for the model on screen;
+  - a list of 2,000-aa models ranked by Talea window score, highest first.
+
+## Run it
+
+```sh
+git clone https://github.com/jwestrob/solreview.git
+cd solreview
+# put a review dataset in data/ (docs/data-format.md)
+python3 serve.py --open
+```
+
+`serve.py` needs Python 3.9 or newer and its standard library. It serves the page at http://127.0.0.1:8765. The
+page loads 3Dmol.js and its fonts from public CDNs.
+
+Options:
+- `--data DIR` reads a dataset from another folder.
+- `--reviewer NAME` or `--labels FILE` chooses the labels file.
+- `--port N` changes the port.
+
+## Labels
+
+Every change saves at once to `labels/<reviewer>.json`. The reviewer defaults to your user name, and the status line
+under Notes names the file. Each reviewer keeps a separate file, so two people can label the same data
+independently. **Copy labels (TSV)** copies every label to the clipboard as a table.
+
+The file maps label ids to labels:
+
+```json
+{"census-review_01": {"solenoid": "yes", "fold": "alpha-solenoid", "residues": "120-340", "notes": "",
+                      "talea_visible": false, "set": "census", "file": "review_01.pdb",
+                      "updatedAt": "2026-10-30T21:53:47.387Z"},
+ "giants-65-w2000_s1000-0": {"solenoid": "yes", "protein": "<record id>", "scheme": "w2000_s1000",
+                             "start": 1, "end": 2000, "set": "giants", "updatedAt": "..."}}
+```
+
+- **Ids.** A review-set id is `<set>-<file stem>`. A giant id is `giants-<bundle key>-<scheme>-<model start>`, with
+  the start 0-based.
+- **Giant spans.** A giant label stores the model's span 1-based and inclusive.
+- **`fold`** is one of `alpha-solenoid`, `beta-solenoid`, `alpha-beta-solenoid`, `helical-bundle`, `coiled-coil`,
+  `other-fold` or `low-confidence`.
+- **`talea_visible`** records whether Talea's regions were on screen when you made the solenoid call.
+
+The same `index.html` also runs as a claude.ai artifact, where labels go to the artifact's database. Served by a plain
+static file server, the page keeps labels in the browser.
+
+## Data
+
+Git ignores `data/` and `labels/`. [docs/data-format.md](docs/data-format.md) describes every file the page reads.
+[build/README.md](build/README.md) explains how to build a dataset from folded models and Talea.
