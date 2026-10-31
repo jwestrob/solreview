@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Serve the Solenoid Review Bench on this machine and keep the labels in a JSON file.
+"""Serve the Solenoid Review Bench on this machine and keep each reviewer's labels in a JSON file.
 
-The page reads its review data from DATA_DIR under /data/ and saves every label through PUT /api/labels/<id>. The
-labels file holds {label id: label}; each save rewrites it whole (a temporary file renamed over the old one), so the
-file on disk is always complete. Python 3.9 or newer, standard library only.
+The page reads its review data from DATA_DIR under /data/ and saves every label through PUT /api/labels/<id> to
+DATA_DIR/labels/<reviewer>.json, which holds {label id: label}. Each save rewrites the file whole (a temporary file
+renamed over the old one), so the file on disk is always complete. The other files in that folder are other
+reviewers' labels, which the page shows read-only. Python 3.9 or newer, standard library only.
 
 usage: python3 serve.py [--data DIR] [--reviewer NAME | --labels FILE] [--port N] [--open]
 """
@@ -50,11 +51,25 @@ class Labels:
             os.replace(temporary, self.path)
 
 
+def other_labels(own):
+    """{reviewer: labels} for every other labels file beside ``own``."""
+    others = {}
+    for path in sorted(own.parent.glob("*.json")) if own.parent.is_dir() else []:
+        if path != own and not path.name.startswith("."):
+            try:
+                others[path.stem] = json.loads(path.read_text())
+            except ValueError as error:
+                print(f"skipping {path}: {error}", flush=True)
+    return others
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = unquote(urlsplit(self.path).path)
         if path == "/api/labels":
-            self.send_json({"file": self.server.labels_shown, "labels": self.server.labels.snapshot()})
+            labels = self.server.labels
+            self.send_json({"file": self.server.labels_shown, "reviewer": labels.path.stem,
+                            "labels": labels.snapshot(), "others": other_labels(labels.path)})
         elif path in ("/", "/index.html"):
             self.send_file(ROOT / "index.html")
         elif path.startswith("/data/"):
@@ -114,8 +129,8 @@ def main():
     parser.add_argument("--data", type=Path, default=ROOT / "data",
                         help="review data folder (default: data/ beside this script)")
     parser.add_argument("--reviewer", default=getpass.getuser(),
-                        help="saves labels to labels/<reviewer>.json beside this script (default: your user name)")
-    parser.add_argument("--labels", type=Path, help="labels file to use instead of labels/<reviewer>.json")
+                        help="saves labels to DATA/labels/<reviewer>.json (default: your user name)")
+    parser.add_argument("--labels", type=Path, help="labels file to use instead of DATA/labels/<reviewer>.json")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--open", action="store_true", help="open the bench in the default browser")
@@ -124,14 +139,17 @@ def main():
     data_dir = args.data.resolve()
     if not (data_dir / "manifest.json").is_file() and not (data_dir / "giants" / "index.json").is_file():
         parser.error(f"{data_dir} holds neither manifest.json nor giants/index.json (see docs/data-format.md)")
-    labels_path = (args.labels or ROOT / "labels" / f"{args.reviewer}.json").resolve()
+    labels_path = (args.labels or data_dir / "labels" / f"{args.reviewer}.json").resolve()
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.data_dir = data_dir
     server.labels = Labels(labels_path)
     server.labels_shown = str(labels_path.relative_to(ROOT) if labels_path.is_relative_to(ROOT) else labels_path)
     url = f"http://{args.host}:{args.port}/"
+    others = other_labels(labels_path)
     print(f"Solenoid Review Bench at {url}\n  data: {data_dir}\n  labels: {labels_path} "
-          f"({len(server.labels.labels)} saved)\nCtrl-C stops the server.", flush=True)
+          f"({len(server.labels.labels)} saved)"
+          + "".join(f"\n  {name}: {len(labels)} labels, shown read-only" for name, labels in others.items())
+          + "\nCtrl-C stops the server.", flush=True)
     if args.open:
         webbrowser.open(url)
     try:

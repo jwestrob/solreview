@@ -16,6 +16,8 @@ data/
     ranked.json          optional: 2,000-aa models by Talea window score
     hits.json            optional: Pfam, CDD and Foldseek hits
     window_gate.json     optional: an alternative set of repeat regions to compare with Talea's
+  labels/
+    <reviewer>.json      written by serve.py: one reviewer's labels, {label id: label} (README.md)
 ```
 
 ## sets.json

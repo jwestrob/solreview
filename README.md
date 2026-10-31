@@ -31,9 +31,17 @@ Options:
 
 ## Labels
 
-Every change saves at once to `labels/<reviewer>.json`. The reviewer defaults to your user name, and the status line
-under Notes names the file. Each reviewer keeps a separate file, so two people can label the same data
-independently. **Copy labels (TSV)** copies every label to the clipboard as a table.
+Every change saves at once to `data/labels/<reviewer>.json`. The reviewer defaults to your user name, and the
+status line under Notes names the file. Labels sit beside the dataset they describe.
+
+The other files in `data/labels/` hold other reviewers' labels, which the page shows read-only:
+
+- Where you have no call yet, a dashed pill in the list shows theirs.
+- The sidebar shows each reviewer's call, fold and notes for the model on screen.
+- With **Blind until I label** on, a review-set model shows them only after you make your own call.
+
+To share labels, copy the files between `data/labels/` folders. Each reviewer writes only to their own file.
+**Copy labels (TSV)** copies your labels to the clipboard as a table.
 
 The file maps label ids to labels:
 
@@ -57,5 +65,5 @@ static file server, the page keeps labels in the browser.
 
 ## Data
 
-Git ignores `data/` and `labels/`. [docs/data-format.md](docs/data-format.md) describes every file the page reads.
+Git ignores `data/`, labels included. [docs/data-format.md](docs/data-format.md) describes every file the page reads.
 [build/README.md](build/README.md) explains how to build a dataset from folded models and Talea.

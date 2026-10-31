@@ -1,6 +1,5 @@
-# Review data and labels stay local: see docs/data-format.md and README.md.
+# Review data and its labels (data/labels/) stay local: see docs/data-format.md and README.md.
 /data/
-/labels/
 __pycache__/
 *.pyc
 .DS_Store

@@ -114,6 +114,7 @@ header.top h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0
 .pill.yes { background: var(--yes-soft); color: var(--yes); border-color: transparent; }
 .pill.no { background: var(--no-soft); color: var(--no); border-color: transparent; }
 .pill.unsure { background: var(--unsure-soft); color: var(--unsure); border-color: transparent; }
+.pill.other { background: transparent; border: 1px dashed currentColor; }
 
 .stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
@@ -177,6 +178,11 @@ textarea { width: 100%; min-height: 96px; resize: vertical; border: 1px solid va
 .nav .btn { flex: 1; }
 .status { font-size: 12px; color: var(--muted); min-height: 1.4em; }
 .status.err { color: var(--unsure); }
+.others { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.others[hidden] { display: none; }
+.others p { margin: 0; display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.others .who { color: var(--fg); font-weight: 500; }
+.others .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .keys { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
 .keys kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
 .hits-panel { border-top: 1px solid var(--line); padding-top: 10px; }
@@ -348,6 +354,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       <textarea id="notes" aria-label="Notes" placeholder="Anything worth keeping: domain boundaries, why unsure, odd geometry"></textarea>
     </div>
     <div class="status" id="status" aria-live="polite"></div>
+    <div class="others" id="others" hidden></div>
     <div class="nav">
       <button class="btn" id="prev" type="button">← Previous</button>
       <button class="btn primary" id="next" type="button">Next →</button>
@@ -373,6 +380,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     ["helical-bundle", "Helical bundle"], ["coiled-coil", "Coiled coil"], ["other-fold", "Other fold"],
     ["low-confidence", "Disordered / low pLDDT"],
   ];
+  const FOLD_NAME = Object.fromEntries(FOLDS);
   const PLDDT = (b) => (b >= 90 ? 0x0053d6 : b >= 70 ? 0x65cbf3 : b >= 50 ? 0xffdb13 : 0xff7d45);
   const UNIT_COLORS = { primary: [0xe07b39, 0x2f6fde], further: [0xc2418f, 0x1e9e8f] };
   const GAP_RES = 0x7a8590, OUTSIDE_RES = 0xc4cbd2;
@@ -383,7 +391,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     set(key, value) { try { localStorage.setItem(key, value); } catch { /* storage unavailable */ } },
   };
 
-  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, db: null, dbReady: false, colorMode: "plddt" };
+  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, others: {}, db: null, dbReady: false, colorMode: "plddt" };
   // Attention images are two panels of min(L, 480) px with an 8 px gap (build/prepare_review_data.py).
   const PANEL = 480, GAP = 8;
   let viewer = null, spinning = false, picking = null, loadToken = 0;
@@ -449,10 +457,12 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       button.type = "button";
       button.setAttribute("aria-current", String(i === state.index));
       const v = state.labels[it.id]?.solenoid;
-      const pill = v ? { yes: "Solenoid", no: "Not", unsure: "Unsure" }[v] : "—";
-      button.innerHTML = `<span class="name"></span><span class="pill ${v || ""}"></span><span class="len"></span>`;
+      const other = v ? null : otherCall(it.id, true);
+      const shown = v || other?.[1];
+      button.innerHTML = `<span class="name"></span><span class="pill ${shown || ""}${other ? " other" : ""}"></span><span class="len"></span>`;
       button.querySelector(".name").textContent = it.file.replace(".pdb", "");
-      button.querySelector(".pill").textContent = pill;
+      button.querySelector(".pill").textContent = pillText(shown);
+      if (other) button.querySelector(".pill").title = `${other[0]}'s call`;
       button.querySelector(".len").textContent = `${it.length.toLocaleString()} aa`;
       button.addEventListener("click", () => select(i));
       li.append(button);
@@ -482,6 +492,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     if (document.activeElement !== $("residues")) $("residues").value = label.residues || "";
     if (document.activeElement !== $("notes")) $("notes").value = label.notes || "";
     renderStatus(it);
+    renderOthers(it);
     renderAttention();
   }
 
@@ -496,6 +507,40 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     if (!state.db) { s.textContent = state.dbReady ? "Kept in this browser only" : "Connecting to saved labels…"; return; }
     s.textContent = (label?.updatedAt ? `Saved ${new Date(label.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Not labeled yet")
       + (state.db.file ? ` · ${state.db.file}` : "");
+  }
+
+  // Other reviewers' labels: every other file in serve.py's labels folder, read-only. With Blind on, a review-set
+  // model shows them once your own call is made, as it does Talea's.
+  function otherCall(id, review) {
+    if (review && $("blind").checked && !state.labels[id]?.solenoid) return null;
+    const name = Object.keys(state.others).sort().find((n) => state.others[n][id]?.solenoid);
+    return name ? [name, state.others[name][id].solenoid] : null;
+  }
+  const pillText = (value) => (value ? { yes: "Solenoid", no: "Not", unsure: "Unsure" }[value] : "—");
+
+  function renderOthers(it) {
+    const box = $("others");
+    const names = Object.keys(state.others).sort();
+    box.textContent = "";
+    box.hidden = !it || !names.length;
+    if (box.hidden) return;
+    if (!it.giant && !callVisible(it)) {
+      const p = document.createElement("p");
+      p.textContent = `Labels from ${names.join(", ")} show after your call.`;
+      box.append(p);
+      return;
+    }
+    for (const name of names) {
+      const l = state.others[name][it.id] || {};
+      const p = document.createElement("p");
+      p.innerHTML = `<span class="who"></span><span class="pill ${l.solenoid || ""}"></span><span class="what"></span>`;
+      p.children[0].textContent = name;
+      p.children[1].textContent = pillText(l.solenoid);
+      const what = [FOLD_NAME[l.fold], l.residues, l.notes].filter(Boolean).join(" · ");
+      p.children[2].textContent = what;
+      p.title = what;
+      box.append(p);
+    }
   }
 
   // Talea positions index the modelled sequence; a model numbered other than 1..L carries `resi` in its call.
@@ -777,6 +822,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     };
     return {
       file: body.file,
+      others: body.others || {},
       collection: () => ({
         doc: (id) => ({ set: (data) => put(id, data) }),
         onSnapshot: (next) => { next({ docs: Object.entries(body.labels).map(([id, data]) => ({ id, data: () => data })) }); },
@@ -790,6 +836,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       state.dbReady = true;
       if (!db) { showNotice("Labels are kept in this browser only in this view. Start the bench with serve.py to save them to a file, or open it on claude.ai while signed in."); loadLocalLabels(); renderAll(); return; }
       state.db = db;
+      state.others = db.others || {};
       db.collection("labels").onSnapshot((snap) => {
         for (const doc of snap.docs) {
           const id = doc.id;
@@ -1246,16 +1293,23 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     if (!giant.index) return;
     const counts = {};
     for (const [, l] of giantLabels()) if (l.solenoid) counts[l.protein] = (counts[l.protein] || 0) + 1;
+    const otherCounts = Object.keys(state.others).sort().map((name) => {
+      const c = {};
+      for (const [id, l] of Object.entries(state.others[name])) if (id.startsWith("giants-") && l.solenoid) c[l.protein] = (c[l.protein] || 0) + 1;
+      return [name, c];
+    });
     giant.index.proteins.forEach((p, i) => {
       const li = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
       button.title = p.id;
       button.setAttribute("aria-current", String(i === giant.protein));
-      const n = counts[p.id] || 0;
-      button.innerHTML = `<span class="name"></span><span class="pill${n ? " yes" : ""}"></span><span class="len"></span><span class="sub"></span>`;
+      const other = counts[p.id] ? null : otherCounts.find(([, c]) => c[p.id]);
+      const n = counts[p.id] || (other ? other[1][p.id] : 0);
+      button.innerHTML = `<span class="name"></span><span class="pill${n ? " yes" : ""}${other ? " other" : ""}"></span><span class="len"></span><span class="sub"></span>`;
       button.querySelector(".name").textContent = p.name;
       button.querySelector(".pill").textContent = n ? `${n} call${n === 1 ? "" : "s"}` : "—";
+      if (other) button.querySelector(".pill").title = `${other[0]}'s calls`;
       button.querySelector(".len").textContent = `${(p.length / 1000).toFixed(1)} kaa · ${p.models ? `${p.models.toLocaleString()} models` : "no models"}`;
       button.querySelector(".sub").textContent = `${p.regions} regions · top ${p.score.toFixed(2)}`;
       button.addEventListener("click", () => selectGiant(i));
@@ -1305,17 +1359,17 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   // One entry per stretch of sequence: sequential windows and near-identical copies in other giants fold into the
   // higher-scoring model, and listed spans are left out (build/build_ranked_review.py).
   const rankedList = () => Boolean(giant.ranked) && giant.listMode === "ranked";
-  const LABEL_PILL = { yes: "Solenoid", no: "Not", unsure: "Unsure" };
-
   function renderListHead() {
     $("list-head").hidden = !giant.ranked;
     $("arrow-hint").textContent = rankedList() ? "next by score" : "model window";
     if (!giant.ranked) return;
     $("list-ranked").setAttribute("aria-pressed", String(rankedList()));
     $("list-proteins").setAttribute("aria-pressed", String(!rankedList()));
-    $("list-caption").textContent = rankedList()
+    const others = Object.keys(state.others).sort();
+    $("list-caption").textContent = (rankedList()
       ? `${giant.ranked.length.toLocaleString()} models, highest Talea window score first`
-      : `${giant.index.proteins.length} giants, longest first`;
+      : `${giant.index.proteins.length} giants, longest first`)
+      + (others.length ? `; dashed: ${others.join(", ")}'s calls` : "");
   }
 
   function setListMode(mode) {
@@ -1370,10 +1424,13 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     const at = rankedIndexOfCurrent();
     ol.querySelectorAll("button.ranked").forEach((button, k) => {
       const it = giant.ranked[k];
-      const v = state.labels[`giants-${it.key}-w2000_s1000-${it.start}`]?.solenoid;
+      const id = `giants-${it.key}-w2000_s1000-${it.start}`;
+      const v = state.labels[id]?.solenoid;
+      const other = v ? null : otherCall(id, false);
       const pill = button.querySelector(".pill");
-      pill.className = `pill ${v || ""}`;
-      pill.textContent = v ? LABEL_PILL[v] : "—";
+      pill.className = `pill ${v || other?.[1] || ""}${other ? " other" : ""}`;
+      pill.textContent = pillText(v || other?.[1]);
+      pill.title = other ? `${other[0]}'s call` : "";
       button.setAttribute("aria-current", String(k === at));
     });
     const active = ol.querySelector('[aria-current="true"]');
@@ -1998,7 +2055,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     });
     $("blind").checked = store.get("blind") === "1";
     $("overlay").checked = store.get("overlay") !== "0";
-    $("blind").addEventListener("change", () => { store.set("blind", $("blind").checked ? "1" : "0"); renderAttention(); applyColors(current()); });
+    $("blind").addEventListener("change", () => { store.set("blind", $("blind").checked ? "1" : "0"); renderList(); renderForm(); applyColors(current()); });
     $("overlay").addEventListener("change", () => { store.set("overlay", $("overlay").checked ? "1" : "0"); renderAttention(); });
     state.colorMode = store.get("color-mode") === "talea" ? "talea" : "plddt";
     const setMode = (mode) => { state.colorMode = mode; store.set("color-mode", mode); applyColors(current()); };
