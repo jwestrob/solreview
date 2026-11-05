@@ -30,6 +30,8 @@ data/
 Tabs follow this file's order, then any other review set in `manifest.json`, then Giants. A set without an entry
 shows its id as the title. An optional `"order": "gap"` opens a review set ordered by Talea's whole-protein model z
 minus its residue model z, highest first (needs `scores` in `talea_calls.json`); the default is the manifest order.
+`"manifest_order": ["By family size", "Largest family first"]` renames the manifest-order button and its caption
+(default `["By score", "Highest Talea score first"]`).
 
 ## Review sets
 

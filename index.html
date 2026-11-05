@@ -506,11 +506,13 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     const scored = setHasScores(), byGap = scored && orderOf() === "gap";
     $("review-head").hidden = !scored;
     if (scored) {
+      const [orderName, orderCaption] = SETS[state.set]?.manifestOrder || ["By score", "Highest Talea score first"];
+      $("order-score").textContent = orderName;
       $("order-score").setAttribute("aria-pressed", String(!byGap));
       $("order-gap").setAttribute("aria-pressed", String(byGap));
       $("review-caption").textContent = byGap
         ? "Whole-protein model z minus residue model z, highest first (the curated tubes' pattern)"
-        : "Highest Talea score first";
+        : orderCaption;
     }
     items().forEach((it, i) => {
       const li = document.createElement("li");
@@ -2309,7 +2311,9 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       for (const id of [...Object.keys(sets), ...Object.keys(state.manifest.sets), "giants"]) {
         if (SETS[id] || !(state.manifest.sets[id] || (id === "giants" && index?.proteins?.length))) continue;
         SETS[id] = { title: sets[id]?.title || (id === "giants" ? "Giants" : id), about: sets[id]?.about || "",
-                     order: sets[id]?.order || "score" };
+                     order: sets[id]?.order || "score",
+                     // Optional names for the manifest order, e.g. ["By family size", "Largest family first"].
+                     manifestOrder: sets[id]?.manifest_order || ["By score", "Highest Talea score first"] };
       }
       if (index?.proteins?.length) {
         index.proteins.forEach((p) => { p.key = p.bundle.split("/").pop().replace(/\.[a-z]+$/, ""); });
