@@ -5,7 +5,9 @@ The Solenoid Review Bench is a browser page for checking predicted protein struc
 unsure), a fold class, the repeat residues and notes.
 
 - **Review sets** show one model per protein beside Talea's layer-13 and layer-35 attention maps. Blind mode keeps
-  Talea's regions hidden until you have made the call.
+  Talea's regions hidden until you have made the call. Where the dataset carries them, the page also shows Talea's
+  score with its whole-protein and residue model z values, the predicted type, and annotation hits (Pfam, KOfam and
+  others) for the model on screen. A set can be listed by Talea score or by the whole-protein minus residue z gap.
 - **Giants** shows long proteins that Talea scored in 2,000-aa windows. Each protein has:
   - a whole-protein track with Talea's windows and regions, the attention band and the residue state;
   - the folded models at every window size;
