@@ -9,6 +9,7 @@ data/
   sets.json              optional: tab titles and descriptions
   manifest.json          review sets: one model per protein
   talea_calls.json       Talea's repeat regions for the review sets
+  review_hits.json       optional: annotation hits for review-set models (build/review_hits.py)
   <set>/                 models and attention maps per review set
   giants/
     index.json           the long proteins
@@ -161,6 +162,18 @@ Each item is:
 - near-identical copies of the model in other proteins, `[key, start, end, score]`.
 
 Items are sorted by score, highest first.
+
+### review_hits.json (optional)
+
+```json
+{"sources": "one line on where the hits come from",
+ "items": {"dpann_gap-gap_004": [["Pfam", 20, 87, "LpxD", "UDP-3-O-[3-hydroxymyristoyl] glucosamine N-acyltransferase", 9.9e-21],
+                                 ["KOfam", null, null, "K02536", "lpxD", 1e-30]]}}
+```
+
+Each hit is `[source, start, end, family, description, E-value]`, with start and end 0-based end-exclusive along the
+modelled sequence, or both null for a whole-protein call. The sidebar lists the hits for the model on screen, as
+observed annotations. Written by `build/review_hits.py` from a TSV.
 
 ### hits.json (optional)
 

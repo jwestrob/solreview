@@ -208,6 +208,9 @@ textarea { width: 100%; min-height: 96px; resize: vertical; border: 1px solid va
 .hits-list .tag.pfam { background: var(--hit-pfam); }
 .hits-list .tag.cdd { background: var(--hit-cdd); }
 .hits-list .tag.foldseek { background: var(--hit-foldseek); }
+.hits-list .tag.kofam, .hits-list .tag.kegg { background: var(--hit-cdd); }
+.hits-list .tag.defensefinder, .hits-list .tag.txsscan { background: var(--hit-foldseek); }
+.hits-list .static { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; padding: 5px 6px; font-size: 13px; }
 .hits-list .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hits-list .sub { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .hits-list a { padding: 6px 2px; font-size: 11px; color: var(--accent); white-space: nowrap; }
@@ -386,6 +389,11 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       <ol class="hits-list" id="hits-list"></ol>
       <p class="hits-note" id="hits-note"></p>
     </section>
+    <section class="hits-panel" data-review-only id="review-hits-panel" aria-label="Annotation hits for this protein" hidden>
+      <h3>Annotation hits</h3>
+      <ol class="hits-list" id="review-hits-list"></ol>
+      <p class="hits-note" id="review-hits-note"></p>
+    </section>
   </aside>
 </main>
 
@@ -419,7 +427,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     set(key, value) { try { localStorage.setItem(key, value); } catch { /* storage unavailable */ } },
   };
 
-  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, others: {}, db: null, dbReady: false, colorMode: "plddt", order: {} };
+  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, others: {}, db: null, dbReady: false, colorMode: "plddt", order: {}, reviewHits: null };
   // Attention images are two panels of min(L, 480) px with an 8 px gap (build/prepare_review_data.py).
   const PANEL = 480, GAP = 8;
   let viewer = null, spinning = false, picking = null, loadToken = 0;
@@ -548,7 +556,35 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     if (document.activeElement !== $("notes")) $("notes").value = label.notes || "";
     renderStatus(it);
     renderOthers(it);
+    renderReviewHits(it);
     renderAttention();
+  }
+
+  // Annotation hits for a review-set model (data/review_hits.json): observed Pfam domains and other annotations,
+  // listed by position, whole-protein calls last. The panel shows only for sets that have hits.
+  function renderReviewHits(it) {
+    const panel = $("review-hits-panel"), list = $("review-hits-list"), note = $("review-hits-note");
+    const table = state.reviewHits?.items || {};
+    const setHas = !giantMode() && items().some((x) => table[x.id]);
+    panel.hidden = !setHas;
+    list.textContent = "";
+    if (!setHas || !it) return;
+    const hits = [...(table[it.id] || [])].sort((a, b) => (a[1] ?? 1e9) - (b[1] ?? 1e9));
+    for (const [source, start, end, family, description, evalue] of hits) {
+      const li = document.createElement("li");
+      const row = document.createElement("div");
+      row.className = "static";
+      row.title = description ? `${family}: ${description}` : family;
+      row.innerHTML = '<span class="tag"></span><span class="name"></span><span class="sub"></span>';
+      row.children[0].textContent = source;
+      row.children[0].className = `tag ${source.toLowerCase().replace(/[^a-z]/g, "")}`;
+      row.children[1].textContent = description ? `${family} · ${description}` : family;
+      const span = start == null ? "whole protein" : `${resiOf(it, start + 1)}–${resiOf(it, end)}`;
+      row.children[2].textContent = [span, evalue != null ? `E ${fmtE(evalue)}` : ""].filter(Boolean).join(" · ");
+      li.append(row);
+      list.append(li);
+    }
+    note.textContent = hits.length ? (state.reviewHits.sources || "") : "No annotation hit for this protein.";
   }
 
   function renderStatus(it) {
@@ -2259,6 +2295,9 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     try {
       const giantsRes = fetch("data/giants/index.json").then((r) => (r.ok ? r.json() : null)).catch(() => null);
       const setsRes = fetch("data/sets.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+      fetch("data/review_hits.json").then((r) => (r.ok ? r.json() : null)).then((h) => {
+        if (h?.items) { state.reviewHits = h; renderForm(); }
+      }).catch(() => {});
       const res = await fetch("data/manifest.json");
       state.manifest = res.ok ? await res.json() : { sets: {} };
       try {
