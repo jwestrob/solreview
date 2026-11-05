@@ -8,6 +8,9 @@ unsure), a fold class, the repeat residues and notes.
   Talea's regions hidden until you have made the call. Where the dataset carries them, the page also shows Talea's
   score with its whole-protein and residue model z values, the predicted type, and annotation hits (Pfam, KOfam and
   others) for the model on screen. A set can be listed by Talea score or by the whole-protein minus residue z gap.
+  Talea 0.3.2 adds regions from its residue model alone, where the attention search found no period. The page draws
+  them as dotted outlines on the maps and in one flat colour on the structure. Each protein names the Talea version
+  behind its regions.
 - **Giants** shows long proteins that Talea scored in 2,000-aa windows. Each protein has:
   - a whole-protein track with Talea's windows and regions, the attention band and the residue state;
   - the folded models at every window size;

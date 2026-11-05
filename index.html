@@ -31,12 +31,14 @@
   --pl-vlow: #ff7d45;
   --call-primary: #6fe3ff;
   --call-further: #c6f36d;
+  --call-state: #b48cff;
   --unit-a: #e07b39;
   --unit-b: #2f6fde;
   --unit-c: #c2418f;
   --unit-d: #1e9e8f;
   --gap-res: #7a8590;
   --outside-res: #c4cbd2;
+  --state-res: #9a6ff0;
   --region-primary: #0f8b8d;
   --region-further: #7a9a01;
   --helix: #c2418f;
@@ -144,6 +146,7 @@ header.top h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0
 .regions li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
 .regions .swatch { width: 18px; height: 0; border-top: 2px solid var(--call-primary); display: inline-block; transform: translateY(-3px); }
 .regions .swatch.further { border-top-style: dashed; border-top-color: var(--call-further); }
+.regions .swatch.state { border-top: 3px dotted var(--call-state); }
 .regions .swatch.hit { border-top: 0; width: 14px; height: 8px; transform: none; }
 .regions .swatch.pfam { background: var(--hit-pfam); }
 .regions .swatch.cdd { background: var(--hit-cdd); }
@@ -310,6 +313,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
         <span><i style="background: var(--unit-a)"></i><i style="background: var(--unit-b)"></i>Units, primary region (alternating)</span>
         <span><i style="background: var(--unit-c)"></i><i style="background: var(--unit-d)"></i>Units, further regions</span>
         <span><i style="background: var(--gap-res)"></i>In a region, between units</span>
+        <span><i style="background: var(--state-res)"></i>Residue model only region (no units)</span>
         <span><i style="background: var(--outside-res)"></i>Outside Talea's regions</span>
       </div>
     </div>
@@ -411,7 +415,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   const FOLD_NAME = Object.fromEntries(FOLDS);
   const PLDDT = (b) => (b >= 90 ? 0x0053d6 : b >= 70 ? 0x65cbf3 : b >= 50 ? 0xffdb13 : 0xff7d45);
   const UNIT_COLORS = { primary: [0xe07b39, 0x2f6fde], further: [0xc2418f, 0x1e9e8f] };
-  const GAP_RES = 0x7a8590, OUTSIDE_RES = 0xc4cbd2;
+  const GAP_RES = 0x7a8590, OUTSIDE_RES = 0xc4cbd2, STATE_RES = 0x9a6ff0;
   // Talea's five-class type head in plain words, in a fixed order (talea_calls.json `type` and `protein_type`).
   const TYPES = [
     ["alpha", "alpha solenoid"], ["beta", "beta solenoid"], ["alpha_beta", "alpha/beta solenoid"],
@@ -712,6 +716,13 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     };
     for (const ox of [0, size + GAP]) {
       for (const region of regions) {
+        // A region from Talea's residue model alone has no period or units: a dotted outline.
+        if (region.source === "state") {
+          square(ox, region.start, region.end, {
+            stroke: cssVar("--call-state"), "stroke-width": "2.5", "stroke-dasharray": "0.5 4.5", "stroke-linecap": "round",
+          });
+          continue;
+        }
         const primary = region.source === "primary";
         for (const unit of region.units || []) square(ox, unit.start, unit.end, { stroke: "#ffffff", "stroke-opacity": "0.55", "stroke-width": "1" });
         square(ox, region.start, region.end, {
@@ -726,7 +737,9 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   function regionList(it, regions) {
     const wrap = document.createElement("div");
     const head = document.createElement("h3");
-    head.textContent = state.taleaVersion ? `Talea ${state.taleaVersion} regions` : "Talea regions";
+    // Each call names the Talea that wrote it; older data files name one version for every call.
+    const version = state.calls[it.id]?.talea_version || state.taleaVersion;
+    head.textContent = version ? `Talea ${version} regions` : "Talea regions";
     wrap.append(head);
     const s = scoresOf(it);
     if (s) {
@@ -752,12 +765,13 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     ol.className = "regions";
     for (const region of regions) {
       const li = document.createElement("li");
-      const further = region.source !== "primary";
-      li.innerHTML = `<span class="swatch${further ? " further" : ""}"></span><span class="mono"></span><span class="meta"></span>`;
+      const kind = region.source === "primary" ? "primary" : region.source === "state" ? "state" : "further";
+      li.innerHTML = `<span class="swatch${kind === "primary" ? "" : ` ${kind}`}"></span><span class="mono"></span><span class="meta"></span>`;
       li.children[1].textContent = `${resiOf(it, region.start)}–${resiOf(it, region.end)}`;
       const units = (region.units || []).length;
       const top = region.type ? topType(region.type) : null;
-      li.children[2].textContent = `${further ? "further" : "primary"} · period ${region.period} aa · ${units} unit${units === 1 ? "" : "s"}`
+      li.children[2].textContent = (kind === "state" ? "residue model only · no period found"
+        : `${kind} · period ${region.period} aa · ${units} unit${units === 1 ? "" : "s"}`)
         + (top ? ` · ${TYPE_NAME[top]} ${percent(region.type[top])}` : "");
       ol.append(li);
     }
@@ -765,6 +779,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     note.className = "hint";
     note.textContent = (s ? "Talea registers a primary region for nearly every protein, strong or weak."
       : "Talea registers a primary region for nearly every protein, strong or weak; scores are left out of this view.")
+      + (regions.some((r) => r.source === "state") ? " A residue model only region marks a stretch the residue model flags where Talea's attention search found no repeat period, so it has no units." : "")
       + (state.calls[it.id]?.resi ? " This model's residue numbering skips residues, so ranges here use the model's numbering while the map's axes count modelled residues." : "");
     wrap.append(ol, note);
     return wrap;
@@ -876,6 +891,11 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   function taleaColors(it) {
     const colors = new Map();
     for (const region of state.calls[it.id]?.regions || []) {
+      // A residue model only region has no units: one flat colour.
+      if (region.source === "state") {
+        for (let r = region.start; r <= region.end; r++) if (!colors.has(resiOf(it, r))) colors.set(resiOf(it, r), STATE_RES);
+        continue;
+      }
       const palette = UNIT_COLORS[region.source === "primary" ? "primary" : "further"];
       for (let r = region.start; r <= region.end; r++) if (!colors.has(resiOf(it, r))) colors.set(resiOf(it, r), GAP_RES);
       (region.units || []).forEach((unit, k) => {
