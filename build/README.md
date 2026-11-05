@@ -15,8 +15,18 @@ PYTHONPATH=<Talea tree> python3 build/talea_calls.py BENCH rows.jsonl census=mod
 ```
 
 - `prepare_review_data.py` writes the gzipped models and attention maps to `BENCH/data/<set>/`, plus
-  `BENCH/data/manifest.json`. Talea's scores stay out of the page.
-- `talea_calls.py` writes Talea's regions to `BENCH/data/talea_calls.json` and its full rows to `rows.jsonl`.
+  `BENCH/data/manifest.json`. Talea's scores stay out of the page. A protein longer than 2,046 aa is scored in
+  Talea's 2,000-aa windows, and its map shows the window Talea reports.
+- `talea_calls.py` writes Talea's regions to `BENCH/data/talea_calls.json` and its full rows to `rows.jsonl`. Rows
+  that carry Talea's type head add each region's type and the whole protein's.
+- Both scripts rebuild the sets named on the command line and keep the others.
+
+To reuse rows from an earlier Talea run, such as a windowed run with region types, pass them to `talea_calls.py`
+with `--from-rows`. The rows match the models by sequence, so Talea does not run again:
+
+```sh
+python3 build/talea_calls.py --from-rows --talea-version 0.3.1 BENCH talea_rows.jsonl dpann=models/dpann
+```
 
 ## Giants
 

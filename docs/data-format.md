@@ -44,6 +44,9 @@ shows its id as the title.
 - `attention` is a JPEG of Talea's two attention maps side by side: layer 13 on the left and layer 35 on the right.
   Each panel is min(L, 480) px square with an 8 px gap between them, coloured with magma and clipped at the 1st and
   99.5th percentiles of the off-diagonal values.
+- `attention_start` and `attention_end` (optional) mark a map that covers part of the protein. Talea reads at most
+  2,046 residues, so a longer protein is scored in 2,000-aa windows every 1,000 residues; its map shows the window
+  Talea reports, and L in the panel size is that window's length.
 
 `talea_calls.json` (written by `build/talea_calls.py`):
 
@@ -51,11 +54,27 @@ shows its id as the title.
 {"talea_version": "0.3.1", "positions": "1-based inclusive",
  "calls": {"census-review_06": {"regions": [{"start": 135, "end": 217, "period": 32.0, "source": "primary",
                                              "units": [{"start": 135, "end": 148}]}],
-                                "resi": [5, 6, 7]}}}
+                                "resi": [5, 6, 7]},
+           "dpann-dpann_001": {"regions": [{"start": 1, "end": 136, "period": 10.0, "source": "primary",
+                                            "units": [{"start": 1, "end": 4}],
+                                            "type": {"alpha": 0.009, "alpha_beta": 0.156, "beta": 0.729,
+                                                     "beta_propeller_or_beta_sandwich": 0.005, "non_solenoid": 0.101}}],
+                               "protein_type": {"alpha": 0.009, "alpha_beta": 0.156, "beta": 0.729,
+                                                "beta_propeller_or_beta_sandwich": 0.005, "non_solenoid": 0.101}}}}
 ```
 
-Positions here are 1-based and inclusive, counted along the modelled sequence. `source` is `primary` or `further`.
-`resi` appears only for a model numbered other than 1..L, and gives the residue number at each position.
+- Positions here are 1-based and inclusive, counted along the modelled sequence.
+- `source` is Talea's: `primary`, or `secondary` for the further regions. The page shows every region other than
+  `primary` as a further region.
+- `resi` appears only for a model numbered other than 1..L, and gives the residue number at each position.
+- `type` and `protein_type` (optional) are Talea's five-class type head: the probabilities of alpha solenoid, beta
+  solenoid, alpha/beta solenoid, beta propeller or beta sandwich, and not a solenoid. `type` averages the head over
+  the region and `protein_type` over the whole protein. They come from Talea rows that carry
+  `region_type_probability` on each region and `predicted_teacher_mean_class_probability`. The page shows the
+  primary region's type with Talea's regions, as an unverified prediction.
+- For a protein Talea scores in windows, `protein_type` covers the window Talea reports. Each region keeps the type
+  from the window that called it, averaged over that window's span of the region, including where Talea extends the
+  region with calls from other windows.
 
 ## Giants
 

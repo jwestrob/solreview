@@ -4,6 +4,11 @@ For each blinded review set, reads the sequence from every model's C-alpha recor
 mode and renders the layer-13 and layer-35 APC attention matrices Talea works from (side by side, magma, clipped
 at the 1st and 99.5th percentiles), then gzips the model. Talea's scores are discarded: the review stays blind.
 
+A protein longer than Talea's 2,046-residue maximum is scored as Talea's 2,000-aa windows every 1,000 residues (as
+`talea --long-proteins window` does). Its map shows the best window, the one Talea reports, and its manifest entry
+records that window as `attention_start` and `attention_end` (0-based, end-exclusive). Sets not named on the command
+line keep their entries in an existing manifest.
+
 usage: PYTHONPATH=<Talea tree> python3 prepare_review_data.py OUT_DIR SET_ID=MODEL_DIR [SET_ID=MODEL_DIR ...]
 """
 import gzip
@@ -31,7 +36,7 @@ def model_sequence(path):
     return "".join(residues)
 
 
-def render(matrices, layers, out_path):
+def render(matrices, layers):
     from matplotlib import colormaps
     from PIL import Image
 
@@ -51,7 +56,7 @@ def render(matrices, layers, out_path):
     canvas[:] = (np.asarray(cmap(0.0)[:3]) * 255).astype(np.uint8)
     canvas[:, :size] = panels[0]
     canvas[:, size + GAP :] = panels[1]
-    Image.fromarray(canvas).save(out_path, quality=88)
+    return Image.fromarray(canvas)
 
 
 def main():
@@ -77,23 +82,42 @@ def main():
 
     original = inference.process_attention_record
     layers = None
+    windows = {}  # window record id ("<id>/<start+1>-<end>") -> its map, kept until the best window is known
 
     def capture(task):
         record_id = task["metadata"]["record_id"]
-        render(task["matrices"], layers, out / items[record_id]["attention"])
+        image = render(task["matrices"], layers)
+        if record_id in items:
+            image.save(out / items[record_id]["attention"], quality=88)
+        else:
+            windows[record_id] = image
         return original(task)
 
+    manifest_path = out / "data" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {"sets": {}}
     inference.process_attention_record = capture
     predictor = inference.TaleaPredictor(device="mps", trust_remote_code=True, local_files_only=True)
     layers = tuple(predictor.expected_layers)
+    if manifest.get("layers", list(layers)) != list(layers):
+        raise SystemExit(f"{manifest_path} holds layers {manifest['layers']}; this Talea uses {list(layers)}")
     done = 0
-    for _ in predictor.iter_predictions(records, postprocess_mode="thread"):
+    for row in predictor.iter_windowed_predictions(records, postprocess_mode="thread"):
+        windowing = row.get("windowing")
+        if windowing:
+            item = items[row["record_id"]]
+            start, end = windowing["best_window_start"], windowing["best_window_end"]
+            windows[f"{row['record_id']}/{start + 1}-{end}"].save(out / item["attention"], quality=88)
+            item["attention_start"], item["attention_end"] = start, end
+            for key in [key for key in windows if key.startswith(row["record_id"] + "/")]:
+                del windows[key]
         done += 1
-    manifest = {"layers": list(layers), "sets": {}}
+    manifest["layers"] = list(layers)
     for set_id, _ in sets:
         manifest["sets"][set_id] = [items[key] for key in sorted(items) if items[key]["set"] == set_id]
-    (out / "data" / "manifest.json").write_text(json.dumps(manifest, indent=1))
-    print(f"{done} proteins; layers {layers}; " + ", ".join(f"{k}: {len(v)}" for k, v in manifest["sets"].items()))
+    manifest_path.write_text(json.dumps(manifest, indent=1))
+    windowed = [key for key, item in items.items() if "attention_start" in item]
+    print(f"{done} proteins; layers {layers}; " + ", ".join(f"{k}: {len(v)}" for k, v in manifest["sets"].items())
+          + "".join(f"; {key} map {items[key]['attention_start'] + 1}-{items[key]['attention_end']}" for key in windowed))
 
 
 if __name__ == "__main__":
