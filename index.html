@@ -155,6 +155,8 @@ header.top h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0
 .mode button + button { border-left: 1px solid var(--line); }
 .mode button[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg); }
 .att-hidden { border: 1px dashed var(--line); border-radius: 6px; padding: 18px; color: var(--muted); text-align: center; }
+.zscores { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+.zscores b { color: var(--fg); font-weight: 600; }
 .ptype { display: flex; flex-direction: column; gap: 4px; margin: 0 0 10px; max-width: 460px; font-size: 12px; color: var(--muted); }
 .ptype p { margin: 0; }
 .ptype .head { font-size: 13px; color: var(--fg); }
@@ -264,6 +266,13 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
         <button type="button" id="list-proteins" aria-pressed="false">Proteins</button>
       </div>
       <p id="list-caption"></p>
+    </div>
+    <div class="list-head" id="review-head" data-review-only hidden>
+      <div class="mode" role="group" aria-label="Order of the review list">
+        <button type="button" id="order-score" aria-pressed="true">By score</button>
+        <button type="button" id="order-gap" aria-pressed="false">Whole-protein minus residue</button>
+      </div>
+      <p id="review-caption"></p>
     </div>
     <ol id="list"></ol>
   </nav>
@@ -410,7 +419,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     set(key, value) { try { localStorage.setItem(key, value); } catch { /* storage unavailable */ } },
   };
 
-  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, others: {}, db: null, dbReady: false, colorMode: "plddt" };
+  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, others: {}, db: null, dbReady: false, colorMode: "plddt", order: {} };
   // Attention images are two panels of min(L, 480) px with an 8 px gap (build/prepare_review_data.py).
   const PANEL = 480, GAP = 8;
   let viewer = null, spinning = false, picking = null, loadToken = 0;
@@ -418,7 +427,23 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   const saving = new Map();
 
   const giantMode = () => state.set === "giants";
-  const items = () => (state.manifest && !giantMode() ? state.manifest.sets[state.set] || [] : []);
+  // A review set lists its models in manifest order (by Talea score for ranked sets). Sets whose calls carry Talea's
+  // two model scores can also be listed by the whole-protein model's z minus the residue model's z, highest first:
+  // the pattern of the curated tubes, which the whole-protein model sees and the residue model mostly misses.
+  const scoresOf = (it) => state.calls[it.id]?.scores;
+  const zGap = (it) => { const s = scoresOf(it); return s ? s.whole_protein_z - s.residue_z : -Infinity; };
+  const setHasScores = () => (state.manifest?.sets[state.set] || []).some((it) => scoresOf(it));
+  // The list order for the current set: the reviewer's choice, else the set's default from sets.json (`order`).
+  const orderOf = () => state.order[state.set] || SETS[state.set]?.order || "score";
+  let sortedCache = { key: "", list: [] };
+  const items = () => {
+    if (!state.manifest || giantMode()) return [];
+    const list = state.manifest.sets[state.set] || [];
+    if (orderOf() !== "gap" || !setHasScores()) return list;
+    const key = `${state.set}:${list.length}`;
+    if (sortedCache.key !== key) sortedCache = { key, list: [...list].sort((a, b) => zGap(b) - zGap(a)) };
+    return sortedCache.list;
+  };
   const current = () => (giantMode() ? giantItem() : items()[state.index]);
   const labelOf = (item) => (item ? state.labels[item.id] : undefined);
   const giantLabels = () => Object.entries(state.labels).filter(([id]) => id.startsWith("giants-"));
@@ -470,6 +495,15 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     const ol = $("list");
     ol.textContent = "";
     ol.dataset.view = "review";
+    const scored = setHasScores(), byGap = scored && orderOf() === "gap";
+    $("review-head").hidden = !scored;
+    if (scored) {
+      $("order-score").setAttribute("aria-pressed", String(!byGap));
+      $("order-gap").setAttribute("aria-pressed", String(byGap));
+      $("review-caption").textContent = byGap
+        ? "Whole-protein model z minus residue model z, highest first (the curated tubes' pattern)"
+        : "Highest Talea score first";
+    }
     items().forEach((it, i) => {
       const li = document.createElement("li");
       const button = document.createElement("button");
@@ -482,7 +516,9 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       button.querySelector(".name").textContent = it.file.replace(".pdb", "");
       button.querySelector(".pill").textContent = pillText(shown);
       if (other) button.querySelector(".pill").title = `${other[0]}'s call`;
-      button.querySelector(".len").textContent = `${it.length.toLocaleString()} aa`;
+      button.querySelector(".len").textContent = byGap
+        ? `${zGap(it) >= 0 ? "+" : ""}${zGap(it).toFixed(1)}` : `${it.length.toLocaleString()} aa`;
+      if (byGap) button.querySelector(".len").title = "whole-protein z minus residue z";
       button.addEventListener("click", () => select(i));
       li.append(button);
       ol.append(li);
@@ -654,6 +690,17 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     const head = document.createElement("h3");
     head.textContent = state.taleaVersion ? `Talea ${state.taleaVersion} regions` : "Talea regions";
     wrap.append(head);
+    const s = scoresOf(it);
+    if (s) {
+      const p = document.createElement("p");
+      p.className = "zscores";
+      p.innerHTML = `<span></span> <b class="mono"></b> · <span></span> <b class="mono"></b> · <span></span> <b class="mono"></b>`;
+      const b = p.querySelectorAll("b"), t = p.querySelectorAll("span");
+      t[0].textContent = "Talea score"; b[0].textContent = s.talea.toFixed(2);
+      t[1].textContent = "whole-protein model z"; b[1].textContent = s.whole_protein_z.toFixed(2);
+      t[2].textContent = "residue model z"; b[2].textContent = s.residue_z.toFixed(2);
+      wrap.append(p);
+    }
     const types = typeBox(it, regions);
     if (types) wrap.append(types);
     if (!regions.length) {
@@ -678,7 +725,8 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     }
     const note = document.createElement("p");
     note.className = "hint";
-    note.textContent = "Talea registers a primary region for nearly every protein, strong or weak; scores are left out of this view."
+    note.textContent = (s ? "Talea registers a primary region for nearly every protein, strong or weak."
+      : "Talea registers a primary region for nearly every protein, strong or weak; scores are left out of this view.")
       + (state.calls[it.id]?.resi ? " This model's residue numbering skips residues, so ranges here use the model's numbering while the map's axes count modelled residues." : "");
     wrap.append(ol, note);
     return wrap;
@@ -2041,6 +2089,17 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     $("regions-031").addEventListener("click", () => setRegionMode("031"));
     $("regions-trial").addEventListener("click", () => setRegionMode("trial"));
     $("list-ranked").addEventListener("click", () => setListMode("ranked"));
+    // Review-set order: keep the model on screen selected across the switch.
+    const setReviewOrder = (mode) => {
+      const it = current();
+      state.order[state.set] = mode;
+      sortedCache = { key: "", list: [] };
+      const i = it ? items().findIndex((x) => x.id === it.id) : 0;
+      select(Math.max(0, i));
+      renderList();
+    };
+    $("order-score").addEventListener("click", () => setReviewOrder("score"));
+    $("order-gap").addEventListener("click", () => setReviewOrder("gap"));
     $("list-proteins").addEventListener("click", () => setListMode("proteins"));
     const canvas = $("track");
     let drag = null;
@@ -2210,7 +2269,8 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       const sets = await setsRes;
       for (const id of [...Object.keys(sets), ...Object.keys(state.manifest.sets), "giants"]) {
         if (SETS[id] || !(state.manifest.sets[id] || (id === "giants" && index?.proteins?.length))) continue;
-        SETS[id] = { title: sets[id]?.title || (id === "giants" ? "Giants" : id), about: sets[id]?.about || "" };
+        SETS[id] = { title: sets[id]?.title || (id === "giants" ? "Giants" : id), about: sets[id]?.about || "",
+                     order: sets[id]?.order || "score" };
       }
       if (index?.proteins?.length) {
         index.proteins.forEach((p) => { p.key = p.bundle.split("/").pop().replace(/\.[a-z]+$/, ""); });

@@ -27,7 +27,8 @@ data/
 ```
 
 Tabs follow this file's order, then any other review set in `manifest.json`, then Giants. A set without an entry
-shows its id as the title.
+shows its id as the title. An optional `"order": "gap"` opens a review set ordered by Talea's whole-protein model z
+minus its residue model z, highest first (needs `scores` in `talea_calls.json`); the default is the manifest order.
 
 ## Review sets
 
@@ -67,6 +68,9 @@ shows its id as the title.
 - `source` is Talea's: `primary`, or `secondary` for the further regions. The page shows every region other than
   `primary` as a further region.
 - `resi` appears only for a model numbered other than 1..L, and gives the residue number at each position.
+- `scores` (optional): Talea's score and its two halves, `{"talea": 2.41, "residue_z": 0.87, "whole_protein_z": 3.92}`
+  (`talea_discovery_score`, `teacher_state_z`, `global_z`). Sets with scores show them beside Talea's regions and can be
+  listed by `whole_protein_z - residue_z`.
 - `type` and `protein_type` (optional) are Talea's five-class type head: the probabilities of alpha solenoid, beta
   solenoid, alpha/beta solenoid, beta propeller or beta sandwich, and not a solenoid. `type` averages the head over
   the region and `protein_type` over the whole protein. They come from Talea rows that carry

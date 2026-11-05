@@ -60,6 +60,13 @@ def call_from_row(row):
             call["type"] = probabilities(region["region_type_probability"])
         regions.append(call)
     call = {"regions": regions}
+    if row.get("talea_discovery_score") is not None:
+        # Talea's score and its two halves: the residue model's z and the whole-protein model's z.
+        call["scores"] = {
+            "talea": round(float(row["talea_discovery_score"]), 3),
+            "residue_z": round(float(row["teacher_state_z"]), 3),
+            "whole_protein_z": round(float(row["global_z"]), 3),
+        }
     if row.get("predicted_teacher_mean_class_probability"):
         call["protein_type"] = probabilities(row["predicted_teacher_mean_class_probability"])
     return call
