@@ -3,7 +3,8 @@
 Runs the Talea tree on PYTHONPATH (MPS) over every model of the named review sets, writes the full rows to ROWS_JSONL
 (kept off the page) and, into the bench data, talea_calls.json with only where Talea places repeats: region
 extents, period, Talea's region source and units, as sequence positions; a model numbered other than 1..L also gets
-`resi`, the residue number at each position. Scores stay out of the page.
+`resi`, the residue number at each position. A region from the residue-state track alone (source "state", Talea
+0.3.2 and later) has period null and no units. Each call records the Talea version that wrote it.
 
 Rows that carry Talea's five-class type head also give each region `type` (from `region_type_probability`, the head
 averaged over the region) and each call `protein_type` (from `predicted_teacher_mean_class_probability`, the head
@@ -12,7 +13,7 @@ averaged over the protein).
 With --from-rows, ROWS_JSONL is read rather than written: rows from an earlier Talea run, matched to the models by
 sequence SHA-256, so Talea does not run again. --talea-version then names the Talea that wrote them.
 
-Calls for the other sets in the manifest are kept.
+Calls for the other sets in the manifest are kept, with their own Talea version.
 
 usage: PYTHONPATH=<Talea tree> python3 talea_calls.py BENCH_DIR ROWS_JSONL SET_ID=MODEL_DIR [SET_ID=MODEL_DIR ...]
        python3 talea_calls.py --from-rows --talea-version V BENCH_DIR ROWS_JSONL SET_ID=MODEL_DIR [...]
@@ -52,7 +53,7 @@ def call_from_row(row):
     for region in row.get("repeat_regions") or []:
         call = {
             **one_based(region),
-            "period": round(float(region["period"]), 1),
+            "period": None if region.get("period") is None else round(float(region["period"]), 1),
             "source": region["source"],
             "units": [one_based(unit) for unit in region.get("units") or []],
         }
@@ -128,19 +129,24 @@ def main():
                 calls[row["record_id"]] = call_from_row(row)
     for record_id, numbers in residue_numbers.items():
         calls[record_id]["resi"] = numbers
+    for call in calls.values():
+        call["talea_version"] = version
 
     kept = {item["id"] for set_id, items in manifest["sets"].items() if set_id not in model_dirs for item in items}
     kept &= set(previous["calls"])
-    if kept and previous.get("talea_version") != version:
-        raise SystemExit(f"{calls_path} holds Talea {previous.get('talea_version')} calls; these are Talea {version}")
-    merged = {**{key: previous["calls"][key] for key in previous["calls"] if key in kept}, **calls}
-    payload = {"talea_version": version, "positions": "1-based inclusive", "calls": merged}
+    # Kept calls keep the Talea version that wrote them; files from before per-call versions name one for all.
+    merged = {key: {"talea_version": previous.get("talea_version"), **call}
+              for key, call in previous["calls"].items() if key in kept}
+    merged.update(calls)
+    versions = sorted({str(call["talea_version"]) for call in merged.values() if call.get("talea_version")})
+    payload = {"talea_versions": versions, "positions": "1-based inclusive", "calls": merged}
     calls_path.write_text(json.dumps(payload, separators=(",", ":")))
     with_regions = sum(1 for call in calls.values() if call["regions"])
+    with_state = sum(1 for call in calls.values() if any(r["source"] == "state" for r in call["regions"]))
     typed = sum(1 for call in calls.values() if "protein_type" in call)
     print(f"talea {version}: {len(calls)} proteins, {with_regions} with regions, "
-          f"{sum(len(c['regions']) for c in calls.values())} regions, {typed} with types; "
-          f"{len(kept)} calls kept from other sets")
+          f"{sum(len(c['regions']) for c in calls.values())} regions, {with_state} with a state region, "
+          f"{typed} with types; {len(kept)} calls kept from other sets")
 
 
 if __name__ == "__main__":

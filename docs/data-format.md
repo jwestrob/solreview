@@ -55,21 +55,29 @@ minus its residue model z, highest first (needs `scores` in `talea_calls.json`);
 `talea_calls.json` (written by `build/talea_calls.py`):
 
 ```json
-{"talea_version": "0.3.1", "positions": "1-based inclusive",
- "calls": {"census-review_06": {"regions": [{"start": 135, "end": 217, "period": 32.0, "source": "primary",
+{"talea_versions": ["0.3.1", "0.3.2"], "positions": "1-based inclusive",
+ "calls": {"census-review_06": {"talea_version": "0.3.1",
+                                "regions": [{"start": 135, "end": 217, "period": 32.0, "source": "primary",
                                              "units": [{"start": 135, "end": 148}]}],
                                 "resi": [5, 6, 7]},
-           "dpann-dpann_001": {"regions": [{"start": 1, "end": 136, "period": 10.0, "source": "primary",
+           "dpann-dpann_001": {"talea_version": "0.3.2",
+                               "regions": [{"start": 1, "end": 136, "period": 10.0, "source": "primary",
                                             "units": [{"start": 1, "end": 4}],
                                             "type": {"alpha": 0.009, "alpha_beta": 0.156, "beta": 0.729,
-                                                     "beta_propeller_or_beta_sandwich": 0.005, "non_solenoid": 0.101}}],
+                                                     "beta_propeller_or_beta_sandwich": 0.005, "non_solenoid": 0.101}},
+                                           {"start": 160, "end": 214, "period": null, "source": "state", "units": []}],
                                "protein_type": {"alpha": 0.009, "alpha_beta": 0.156, "beta": 0.729,
                                                 "beta_propeller_or_beta_sandwich": 0.005, "non_solenoid": 0.101}}}}
 ```
 
 - Positions here are 1-based and inclusive, counted along the modelled sequence.
-- `source` is Talea's: `primary`, or `secondary` for the further regions. The page shows every region other than
-  `primary` as a further region.
+- `talea_version` is the Talea that wrote the call, and `talea_versions` lists every version in the file. The page
+  names each protein's version above its regions. An older file has one top-level `talea_version` for every call.
+- `source` is Talea's: `primary`, `secondary` for the further wedge regions, or `state` (Talea 0.3.2 and later) for
+  a region from the residue-state track alone. A state region marks a stretch the residue model flags where the
+  attention search found no period, so it has `period: null` and no units. The page shows `secondary` regions as
+  further regions. It draws a state region as a dotted outline on the maps and one flat colour on the structure, and
+  lists it as "residue model only · no period found".
 - `resi` appears only for a model numbered other than 1..L, and gives the residue number at each position.
 - `scores` (optional): Talea's score and its two halves, `{"talea": 2.41, "residue_z": 0.87, "whole_protein_z": 3.92}`
   (`talea_discovery_score`, `teacher_state_z`, `global_z`). Sets with scores show them beside Talea's regions and can be

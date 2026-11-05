@@ -25,8 +25,10 @@ To reuse rows from an earlier Talea run, such as a windowed run with region type
 with `--from-rows`. The rows match the models by sequence, so Talea does not run again:
 
 ```sh
-python3 build/talea_calls.py --from-rows --talea-version 0.3.1 BENCH talea_rows.jsonl dpann=models/dpann
+python3 build/talea_calls.py --from-rows --talea-version 0.3.2 BENCH talea_rows.jsonl dpann=models/dpann
 ```
+
+Each call records the Talea version that wrote it, so rebuilt sets can run a newer Talea than the sets kept.
 
 ## Giants
 
