@@ -155,6 +155,17 @@ header.top h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0
 .mode button + button { border-left: 1px solid var(--line); }
 .mode button[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg); }
 .att-hidden { border: 1px dashed var(--line); border-radius: 6px; padding: 18px; color: var(--muted); text-align: center; }
+.ptype { display: flex; flex-direction: column; gap: 4px; margin: 0 0 10px; max-width: 460px; font-size: 12px; color: var(--muted); }
+.ptype p { margin: 0; }
+.ptype .head { font-size: 13px; color: var(--fg); }
+.ptype .head b { font-weight: 600; }
+.ptype .sub { color: var(--muted); }
+.ptype-rows { display: grid; grid-template-columns: max-content minmax(80px, 1fr) 4.5ch; gap: 2px 10px; align-items: center; }
+.ptype-rows .track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.ptype-rows .track span { display: block; height: 100%; background: var(--muted); opacity: 0.55; }
+.ptype-rows .mono { text-align: right; font-size: 11px; }
+.ptype-rows .top { color: var(--fg); font-weight: 500; }
+.ptype-rows .track.top span { background: var(--accent); opacity: 1; }
 
 .call { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 14px; }
 .call h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
@@ -384,6 +395,14 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   const PLDDT = (b) => (b >= 90 ? 0x0053d6 : b >= 70 ? 0x65cbf3 : b >= 50 ? 0xffdb13 : 0xff7d45);
   const UNIT_COLORS = { primary: [0xe07b39, 0x2f6fde], further: [0xc2418f, 0x1e9e8f] };
   const GAP_RES = 0x7a8590, OUTSIDE_RES = 0xc4cbd2;
+  // Talea's five-class type head in plain words, in a fixed order (talea_calls.json `type` and `protein_type`).
+  const TYPES = [
+    ["alpha", "alpha solenoid"], ["beta", "beta solenoid"], ["alpha_beta", "alpha/beta solenoid"],
+    ["beta_propeller_or_beta_sandwich", "beta propeller or sandwich"], ["non_solenoid", "not a solenoid"],
+  ];
+  const TYPE_NAME = Object.fromEntries(TYPES);
+  const topType = (type) => TYPES.reduce((best, [key]) => ((type[key] ?? -1) > (type[best] ?? -1) ? key : best), TYPES[0][0]);
+  const percent = (p) => `${Math.round(100 * p)}%`;
 
   const $ = (id) => document.getElementById(id);
   const store = {
@@ -567,11 +586,13 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       return;
     }
     const layers = state.manifest.layers || [13, 35];
+    // A protein longer than Talea's 2,046-residue maximum carries the map of the 2,000-aa window Talea reports.
+    const first = (it.attention_start ?? 0) + 1, last = it.attention_end ?? it.length;
     const cols = document.createElement("div");
     cols.className = "att-cols";
     cols.innerHTML = `<span></span><span></span>`;
-    cols.children[0].textContent = `Layer ${layers[0]} · residues 1–${it.length}`;
-    cols.children[1].textContent = `Layer ${layers[1]} · residues 1–${it.length}`;
+    cols.children[0].textContent = `Layer ${layers[0]} · residues ${first}–${last}`;
+    cols.children[1].textContent = `Layer ${layers[1]} · residues ${first}–${last}`;
     const frame = document.createElement("div");
     frame.className = "att-frame";
     const img = document.createElement("img");
@@ -579,24 +600,37 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     img.alt = `Attention maps for ${it.file}, residue against residue, layers ${layers[0]} and ${layers[1]}`;
     frame.append(img);
     const regions = state.calls[it.id]?.regions || [];
-    if ($("overlay").checked && regions.length) frame.append(overlaySvg(it, regions));
-    body.append(cols, frame, regionList(it, regions));
+    if ($("overlay").checked && regions.length) frame.append(overlaySvg(it, regions, first, last));
+    body.append(cols, frame);
+    if (it.attention_end !== undefined) {
+      const p = document.createElement("p");
+      p.className = "hint";
+      p.textContent = `Talea reads at most 2,046 residues, so it scores this ${it.length.toLocaleString()}-aa protein in 2,000-aa windows. `
+        + `The maps show the window Talea reports, residues ${first.toLocaleString()}–${last.toLocaleString()}. The regions below cover the whole protein`
+        + (regions.some((r) => r.type) ? "; each region's predicted type comes from the window that called it." : ".");
+      body.append(p);
+    }
+    body.append(regionList(it, regions));
   }
 
-  function overlaySvg(it, regions) {
-    const size = Math.min(it.length, PANEL);
-    const width = 2 * size + GAP, k = size / it.length;
+  function overlaySvg(it, regions, first, last) {
+    const span = last - first + 1;
+    const size = Math.min(span, PANEL);
+    const width = 2 * size + GAP, k = size / span;
     const ns = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(ns, "svg");
     svg.setAttribute("viewBox", `0 0 ${width} ${size}`);
     svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("aria-hidden", "true");
     const square = (ox, start, end, attrs) => {
+      // Spans are clipped to the residues the map covers.
+      const a = Math.max(start, first), b = Math.min(end, last);
+      if (a > b) return;
       const r = document.createElementNS(ns, "rect");
-      r.setAttribute("x", ox + (start - 1) * k);
-      r.setAttribute("y", (start - 1) * k);
-      r.setAttribute("width", Math.max((end - start + 1) * k, 1));
-      r.setAttribute("height", Math.max((end - start + 1) * k, 1));
+      r.setAttribute("x", ox + (a - first) * k);
+      r.setAttribute("y", (a - first) * k);
+      r.setAttribute("width", Math.max((b - a + 1) * k, 1));
+      r.setAttribute("height", Math.max((b - a + 1) * k, 1));
       r.setAttribute("fill", "none");
       r.setAttribute("vector-effect", "non-scaling-stroke");
       for (const [key, value] of Object.entries(attrs)) r.setAttribute(key, value);
@@ -620,6 +654,8 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     const head = document.createElement("h3");
     head.textContent = state.taleaVersion ? `Talea ${state.taleaVersion} regions` : "Talea regions";
     wrap.append(head);
+    const types = typeBox(it, regions);
+    if (types) wrap.append(types);
     if (!regions.length) {
       const p = document.createElement("p");
       p.className = "hint";
@@ -635,7 +671,9 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       li.innerHTML = `<span class="swatch${further ? " further" : ""}"></span><span class="mono"></span><span class="meta"></span>`;
       li.children[1].textContent = `${resiOf(it, region.start)}–${resiOf(it, region.end)}`;
       const units = (region.units || []).length;
-      li.children[2].textContent = `${further ? "further" : "primary"} · period ${region.period} aa · ${units} unit${units === 1 ? "" : "s"}`;
+      const top = region.type ? topType(region.type) : null;
+      li.children[2].textContent = `${further ? "further" : "primary"} · period ${region.period} aa · ${units} unit${units === 1 ? "" : "s"}`
+        + (top ? ` · ${TYPE_NAME[top]} ${percent(region.type[top])}` : "");
       ol.append(li);
     }
     const note = document.createElement("p");
@@ -644,6 +682,54 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       + (state.calls[it.id]?.resi ? " This model's residue numbering skips residues, so ranges here use the model's numbering while the map's axes count modelled residues." : "");
     wrap.append(ol, note);
     return wrap;
+  }
+
+  // Talea's type head for the primary region (the whole protein when no region carries one), as five small bars.
+  // It sits with Talea's regions, so blind mode hides it with them.
+  function typeBox(it, regions) {
+    const call = state.calls[it.id] || {};
+    const primary = regions.find((r) => r.source === "primary" && r.type);
+    const type = primary?.type || call.protein_type;
+    if (!type) return null;
+    const top = topType(type);
+    // For a protein Talea scores in windows, its protein-wide average covers the window Talea reports.
+    const scope = it.attention_end === undefined ? "Whole protein"
+      : `Window ${(it.attention_start + 1).toLocaleString()}–${it.attention_end.toLocaleString()}`;
+    const box = document.createElement("div");
+    box.className = "ptype";
+    const head = document.createElement("p");
+    head.className = "head";
+    head.innerHTML = `<span></span> <b></b><span class="sub"></span>`;
+    head.children[0].textContent = "Predicted type (Talea, unverified):";
+    head.children[1].textContent = TYPE_NAME[top][0].toUpperCase() + TYPE_NAME[top].slice(1);
+    head.children[2].textContent = primary
+      ? ` · primary region ${resiOf(it, primary.start)}–${resiOf(it, primary.end)}` : ` · ${scope.toLowerCase()}`;
+    const rows = document.createElement("div");
+    rows.className = "ptype-rows";
+    for (const [key, name] of TYPES) {
+      const p = type[key] ?? 0;
+      const label = document.createElement("span");
+      label.textContent = name;
+      const track = document.createElement("span");
+      track.className = "track";
+      track.setAttribute("aria-hidden", "true");
+      track.append(document.createElement("span"));
+      track.firstChild.style.width = `${(100 * p).toFixed(1)}%`;
+      const value = document.createElement("span");
+      value.className = "mono";
+      value.textContent = percent(p);
+      if (key === top) for (const el of [label, track, value]) el.classList.add("top");
+      rows.append(label, track, value);
+    }
+    box.append(head, rows);
+    if (primary && call.protein_type) {
+      const whole = topType(call.protein_type);
+      const p = document.createElement("p");
+      p.className = "sub";
+      p.textContent = `${scope}: ${TYPE_NAME[whole]} ${percent(call.protein_type[whole])}`;
+      box.append(p);
+    }
+    return box;
   }
 
   function renderAll() { renderSets(); renderProgress(); renderList(); renderForm(); }
