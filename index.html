@@ -111,7 +111,8 @@ header.top h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0
 .list li button:hover { background: var(--bg); }
 .list li button[aria-current="true"] { background: var(--accent-soft); }
 .list .name { font-family: var(--mono); font-size: 13px; }
-.list .len { font-family: var(--mono); font-size: 11px; color: var(--muted); grid-column: 1; }
+.list .len { font-family: var(--mono); font-size: 11px; color: var(--muted); grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-head .lineage { flex-basis: 100%; order: 1; margin-top: -4px; font-size: 12px; color: var(--muted); }
 .pill { grid-row: 1 / span 2; grid-column: 2; font-size: 11px; font-weight: 500; border-radius: 10px; padding: 1px 8px; border: 1px solid var(--line); color: var(--muted); }
 .pill.yes { background: var(--yes-soft); color: var(--yes); border-color: transparent; }
 .pill.no { background: var(--no-soft); color: var(--no); border-color: transparent; }
@@ -287,6 +288,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     <div class="card">
       <div class="viewer-head">
         <h2 id="current-name">Loading proteins…</h2>
+        <span class="lineage" id="current-lineage" hidden></span>
         <span class="readout" id="readout">Hover a residue for its number and pLDDT</span>
         <div class="viewer-tools">
           <div class="scales" role="group" aria-label="Model window length (aa)" id="scales" data-giant-only></div>
@@ -531,7 +533,10 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       button.querySelector(".pill").textContent = pillText(shown);
       if (other) button.querySelector(".pill").title = `${other[0]}'s call`;
       button.querySelector(".len").textContent = byGap
-        ? `${zGap(it) >= 0 ? "+" : ""}${zGap(it).toFixed(1)}` : `${it.length.toLocaleString()} aa`;
+        ? `${zGap(it) >= 0 ? "+" : ""}${zGap(it).toFixed(1)}`
+        : (it.organism ? `${it.organism} · ${it.length.toLocaleString()} aa` : `${it.length.toLocaleString()} aa`);
+      // Organism details on hover; `alias` is the item's bench name before items were named by accession.
+      if (it.lineage || it.alias) button.title = [it.lineage, it.genome, it.alias ? `formerly ${it.alias}` : ""].filter(Boolean).join(" · ");
       if (byGap) button.querySelector(".len").title = "whole-protein z minus residue z";
       button.addEventListener("click", () => select(i));
       li.append(button);
@@ -556,6 +561,12 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     $("current-name").textContent = giantMode()
       ? (it ? it.file : giantEmptyName())
       : (it ? `${it.file.replace(".pdb", "")} · ${it.length.toLocaleString()} aa` : "No proteins");
+    const lineage = !giantMode() && it && (it.lineage || it.genome)
+      ? [it.lineage, it.genome].filter(Boolean).join(" · ") : "";
+    $("current-lineage").textContent = lineage;
+    $("current-lineage").hidden = !lineage;
+    if (it?.alias) $("current-lineage").title = `formerly ${it.alias}`;
+    else $("current-lineage").removeAttribute("title");
     for (const b of $("solenoid").querySelectorAll("button")) b.setAttribute("aria-pressed", String(label.solenoid === b.dataset.v));
     for (const b of $("fold").querySelectorAll("button")) b.setAttribute("aria-pressed", String(label.fold === b.dataset.v));
     if (document.activeElement !== $("residues")) $("residues").value = label.residues || "";

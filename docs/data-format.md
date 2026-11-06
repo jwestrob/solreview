@@ -43,7 +43,8 @@ minus its residue model z, highest first (needs `scores` in `talea_calls.json`);
                       "pdb": "data/census/review_01.pdb.gz", "attention": "data/census/review_01_attention.jpg"}]}}
 ```
 
-- `id` is the label id, `<set>-<file stem>`.
+- `id` is the label id, `<set>-<file stem>`. Name files by the protein's own accession (`MCX8197437.1.pdb`), not by
+  rank or set position, so the list shows an identifier people can look up.
 - `pdb` is a PDB file, plain or gzipped, with pLDDT in the B-factor column.
 - `attention` is a JPEG of Talea's two attention maps side by side: layer 13 on the left and layer 35 on the right.
   Each panel is min(L, 480) px square with an 8 px gap between them, coloured with magma and clipped at the 1st and
@@ -51,6 +52,10 @@ minus its residue model z, highest first (needs `scores` in `talea_calls.json`);
 - `attention_start` and `attention_end` (optional) mark a map that covers part of the protein. Talea reads at most
   2,046 residues, so a longer protein is scored in 2,000-aa windows every 1,000 residues; its map shows the window
   Talea reports, and L in the panel size is that window's length.
+- `organism`, `lineage` and `genome` (optional) describe where the protein comes from. The list shows `organism`
+  under the name (keep it short: phylum and order, or the species and locus tag). The viewer header shows `lineage`
+  (e.g. the GTDB ranks) and `genome` (the assembly or bin accession).
+- `alias` (optional) is an earlier name for the item; the page shows it on hover as "formerly …".
 
 `talea_calls.json` (written by `build/talea_calls.py`):
 
