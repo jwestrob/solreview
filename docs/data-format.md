@@ -55,6 +55,8 @@ minus its residue model z, highest first (needs `scores` in `talea_calls.json`);
 - `organism`, `lineage` and `genome` (optional) describe where the protein comes from. The list shows `organism`
   under the name (keep it short: phylum and order, or the species and locus tag). The viewer header shows `lineage`
   (e.g. the GTDB ranks) and `genome` (the assembly or bin accession).
+- `closure_z` (optional) is Talea's closure score (`topology_development_control_z`); the list shows it on hover. Low
+  values mean the first and last repeat units attend to each other about as strongly as neighbouring units, as in a ring.
 
 `talea_calls.json` (written by `build/talea_calls.py`):
 

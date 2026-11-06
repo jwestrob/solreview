@@ -233,6 +233,8 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
 #track { width: 100%; height: 314px; display: block; touch-action: pan-y; cursor: crosshair; }
 #track.dragging { cursor: grabbing; }
 .giant-meta { font-size: 12px; color: var(--muted); }
+.list-head .mode { display: flex; width: 100%; }
+.list-head .mode button { flex: 1 1 auto; min-width: 0; padding: 4px 3px; font-size: 11.5px; line-height: 1.25; }
 .list-head { position: sticky; top: 0; z-index: 1; background: var(--panel); border-bottom: 1px solid var(--line); padding: 8px 8px 6px; display: flex; flex-direction: column; gap: 4px; }
 .list-head[hidden] { display: none; }
 .list-head p { margin: 0; font-size: 11px; color: var(--muted); }
@@ -277,7 +279,13 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     <div class="list-head" id="review-head" data-review-only hidden>
       <div class="mode" role="group" aria-label="Order of the review list">
         <button type="button" id="order-score" aria-pressed="true">By score</button>
-        <button type="button" id="order-gap" aria-pressed="false">Whole-protein minus residue</button>
+        <button type="button" id="order-size" aria-pressed="false">By size</button>
+        <button type="button" id="order-gap" aria-pressed="false" title="Whole-protein model z minus residue model z">z gap</button>
+      </div>
+      <div class="mode" role="group" aria-label="Filter the review list by annotation">
+        <button type="button" id="ann-all" aria-pressed="true">All</button>
+        <button type="button" id="ann-dark" aria-pressed="false">Unannotated</button>
+        <button type="button" id="ann-known" aria-pressed="false">Annotated</button>
       </div>
       <p id="review-caption"></p>
     </div>
@@ -388,8 +396,8 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       <button class="btn" id="prev" type="button">← Previous</button>
       <button class="btn primary" id="next" type="button">Next →</button>
     </div>
-    <div class="keys" data-review-only><kbd>Y</kbd> <kbd>N</kbd> <kbd>U</kbd> solenoid · <kbd>1</kbd>–<kbd>7</kbd> fold · <kbd>←</kbd> <kbd>→</kbd> move · <kbd>.</kbd> next unlabeled</div>
-    <div class="keys" data-giant-only>Calls here apply to the model window on screen. <kbd>Y</kbd> <kbd>N</kbd> <kbd>U</kbd> solenoid · <kbd>1</kbd>–<kbd>7</kbd> fold · <kbd>←</kbd> <kbd>→</kbd> <span id="arrow-hint">model window</span> · <kbd>[</kbd> <kbd>]</kbd> Talea region · <kbd>S</kbd> next scale</div>
+    <div class="keys" data-review-only><kbd>Y</kbd> <kbd>N</kbd> <kbd>U</kbd> solenoid · <kbd>1</kbd>–<kbd>8</kbd> fold · <kbd>←</kbd> <kbd>→</kbd> move · <kbd>.</kbd> next unlabeled</div>
+    <div class="keys" data-giant-only>Calls here apply to the model window on screen. <kbd>Y</kbd> <kbd>N</kbd> <kbd>U</kbd> solenoid · <kbd>1</kbd>–<kbd>8</kbd> fold · <kbd>←</kbd> <kbd>→</kbd> <span id="arrow-hint">model window</span> · <kbd>[</kbd> <kbd>]</kbd> Talea region · <kbd>S</kbd> next scale</div>
     <section class="hits-panel" data-giant-only aria-label="Pfam, CDD and Foldseek hits in this model">
       <h3>Hits in this model</h3>
       <ol class="hits-list" id="hits-list"></ol>
@@ -412,7 +420,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   const FOLDS = [
     ["alpha-solenoid", "α-solenoid"], ["beta-solenoid", "β-solenoid"], ["alpha-beta-solenoid", "α/β-solenoid"],
     ["helical-bundle", "Helical bundle"], ["coiled-coil", "Coiled coil"], ["other-fold", "Other fold"],
-    ["low-confidence", "Disordered / low pLDDT"],
+    ["low-confidence", "Disordered / low pLDDT"], ["closed-repeat", "Closed repeat"],
   ];
   const FOLD_NAME = Object.fromEntries(FOLDS);
   const PLDDT = (b) => (b >= 90 ? 0x0053d6 : b >= 70 ? 0x65cbf3 : b >= 50 ? 0xffdb13 : 0xff7d45);
@@ -433,7 +441,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     set(key, value) { try { localStorage.setItem(key, value); } catch { /* storage unavailable */ } },
   };
 
-  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, others: {}, db: null, dbReady: false, colorMode: "plddt", order: {}, reviewHits: null };
+  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, others: {}, db: null, dbReady: false, colorMode: "plddt", order: {}, annFilter: {}, reviewHits: null };
   // Attention images are two panels of min(L, 480) px with an 8 px gap (build/prepare_review_data.py).
   const PANEL = 480, GAP = 8;
   let viewer = null, spinning = false, picking = null, loadToken = 0;
@@ -449,13 +457,24 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   const setHasScores = () => (state.manifest?.sets[state.set] || []).some((it) => scoresOf(it));
   // The list order for the current set: the reviewer's choice, else the set's default from sets.json (`order`).
   const orderOf = () => state.order[state.set] || SETS[state.set]?.order || "score";
+  // Annotation filter for the current set: "all", "dark" (no hit in data/review_hits.json: Pfam, KOfam, DefenseFinder,
+  // TXSScan) or "known" (at least one hit).
+  const annOf = () => state.annFilter[state.set] || "all";
+  const isAnnotated = (it) => (state.reviewHits?.items?.[it.id]?.length || 0) > 0;
   let sortedCache = { key: "", list: [] };
   const items = () => {
     if (!state.manifest || giantMode()) return [];
     const list = state.manifest.sets[state.set] || [];
-    if (orderOf() !== "gap" || !setHasScores()) return list;
-    const key = `${state.set}:${list.length}`;
-    if (sortedCache.key !== key) sortedCache = { key, list: [...list].sort((a, b) => zGap(b) - zGap(a)) };
+    const order = orderOf(), ann = annOf();
+    const byGap = order === "gap" && setHasScores();
+    if (!byGap && order !== "size" && ann === "all") return list;
+    const key = `${state.set}:${list.length}:${byGap ? "gap" : order}:${ann}:${state.reviewHits ? 1 : 0}`;
+    if (sortedCache.key !== key) {
+      const out = ann === "all" ? [...list] : list.filter((it) => isAnnotated(it) === (ann === "known"));
+      if (byGap) out.sort((a, b) => zGap(b) - zGap(a));
+      else if (order === "size") out.sort((a, b) => b.length - a.length);
+      sortedCache = { key, list: out };
+    }
     return sortedCache.list;
   };
   const current = () => (giantMode() ? giantItem() : items()[state.index]);
@@ -509,17 +528,24 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     const ol = $("list");
     ol.textContent = "";
     ol.dataset.view = "review";
-    const scored = setHasScores(), byGap = scored && orderOf() === "gap";
-    $("review-head").hidden = !scored;
-    if (scored) {
-      const [orderName, orderCaption] = SETS[state.set]?.manifestOrder || ["By score", "Highest Talea score first"];
-      $("order-score").textContent = orderName;
-      $("order-score").setAttribute("aria-pressed", String(!byGap));
-      $("order-gap").setAttribute("aria-pressed", String(byGap));
-      $("review-caption").textContent = byGap
-        ? "Whole-protein model z minus residue model z, highest first (the curated tubes' pattern)"
-        : orderCaption;
+    const scored = setHasScores(), byGap = scored && orderOf() === "gap", bySize = orderOf() === "size";
+    const ann = annOf();
+    $("review-head").hidden = false;
+    $("order-gap").hidden = !scored;
+    const [orderName, orderCaption] = SETS[state.set]?.manifestOrder || ["By score", "Highest Talea score first"];
+    $("order-score").textContent = orderName;
+    $("order-score").setAttribute("aria-pressed", String(!byGap && !bySize));
+    $("order-size").setAttribute("aria-pressed", String(bySize));
+    $("order-gap").setAttribute("aria-pressed", String(byGap));
+    for (const [id, mode] of [["ann-all", "all"], ["ann-dark", "dark"], ["ann-known", "known"]]) {
+      $(id).setAttribute("aria-pressed", String(ann === mode));
     }
+    const shown = items().length, total = (state.manifest?.sets[state.set] || []).length;
+    const filterNote = ann === "all" ? ""
+      : ` · ${shown.toLocaleString()} of ${total.toLocaleString()} ${ann === "dark" ? "without" : "with"} annotation hits`;
+    $("review-caption").textContent = (byGap
+      ? "Whole-protein model z minus residue model z, highest first (the curated tubes' pattern)"
+      : bySize ? "Longest first" : orderCaption) + filterNote;
     items().forEach((it, i) => {
       const li = document.createElement("li");
       const button = document.createElement("button");
@@ -534,9 +560,10 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       if (other) button.querySelector(".pill").title = `${other[0]}'s call`;
       button.querySelector(".len").textContent = byGap
         ? `${zGap(it) >= 0 ? "+" : ""}${zGap(it).toFixed(1)}`
-        : (it.organism ? `${it.organism} · ${it.length.toLocaleString()} aa` : `${it.length.toLocaleString()} aa`);
-      // Organism details on hover.
-      if (it.lineage) button.title = [it.lineage, it.genome].filter(Boolean).join(" · ");
+        : (it.organism ? `${it.length.toLocaleString()} aa · ${it.organism}` : `${it.length.toLocaleString()} aa`);
+      // Organism details on hover, and the closure score where a set carries it (Closed repeats tab).
+      const closure = it.closure_z != null ? `closure score ${it.closure_z.toFixed(2)}` : "";
+      if (it.lineage || closure) button.title = [it.lineage, it.genome, closure].filter(Boolean).join(" · ");
       if (byGap) button.querySelector(".len").title = "whole-protein z minus residue z";
       button.addEventListener("click", () => select(i));
       li.append(button);
@@ -2166,7 +2193,20 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       renderList();
     };
     $("order-score").addEventListener("click", () => setReviewOrder("score"));
+    $("order-size").addEventListener("click", () => setReviewOrder("size"));
     $("order-gap").addEventListener("click", () => setReviewOrder("gap"));
+    // Annotation filter: keep the model on screen if it passes, else go to the top of the filtered list.
+    const setAnnFilter = (mode) => {
+      const it = current();
+      state.annFilter[state.set] = mode;
+      sortedCache = { key: "", list: [] };
+      const i = it ? items().findIndex((x) => x.id === it.id) : 0;
+      select(Math.max(0, i));
+      renderList(); renderForm();
+    };
+    $("ann-all").addEventListener("click", () => setAnnFilter("all"));
+    $("ann-dark").addEventListener("click", () => setAnnFilter("dark"));
+    $("ann-known").addEventListener("click", () => setAnnFilter("known"));
     $("list-proteins").addEventListener("click", () => setListMode("proteins"));
     const canvas = $("track");
     let drag = null;
@@ -2327,7 +2367,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       const giantsRes = fetch("data/giants/index.json").then((r) => (r.ok ? r.json() : null)).catch(() => null);
       const setsRes = fetch("data/sets.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
       fetch("data/review_hits.json").then((r) => (r.ok ? r.json() : null)).then((h) => {
-        if (h?.items) { state.reviewHits = h; renderForm(); }
+        if (h?.items) { state.reviewHits = h; if (state.manifest && !giantMode()) renderList(); renderForm(); }
       }).catch(() => {});
       const res = await fetch("data/manifest.json");
       state.manifest = res.ok ? await res.json() : { sets: {} };
