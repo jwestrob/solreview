@@ -535,8 +535,8 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       button.querySelector(".len").textContent = byGap
         ? `${zGap(it) >= 0 ? "+" : ""}${zGap(it).toFixed(1)}`
         : (it.organism ? `${it.organism} · ${it.length.toLocaleString()} aa` : `${it.length.toLocaleString()} aa`);
-      // Organism details on hover; `alias` is the item's bench name before items were named by accession.
-      if (it.lineage || it.alias) button.title = [it.lineage, it.genome, it.alias ? `formerly ${it.alias}` : ""].filter(Boolean).join(" · ");
+      // Organism details on hover.
+      if (it.lineage) button.title = [it.lineage, it.genome].filter(Boolean).join(" · ");
       if (byGap) button.querySelector(".len").title = "whole-protein z minus residue z";
       button.addEventListener("click", () => select(i));
       li.append(button);
@@ -565,8 +565,6 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       ? [it.lineage, it.genome].filter(Boolean).join(" · ") : "";
     $("current-lineage").textContent = lineage;
     $("current-lineage").hidden = !lineage;
-    if (it?.alias) $("current-lineage").title = `formerly ${it.alias}`;
-    else $("current-lineage").removeAttribute("title");
     for (const b of $("solenoid").querySelectorAll("button")) b.setAttribute("aria-pressed", String(label.solenoid === b.dataset.v));
     for (const b of $("fold").querySelectorAll("button")) b.setAttribute("aria-pressed", String(label.fold === b.dataset.v));
     if (document.activeElement !== $("residues")) $("residues").value = label.residues || "";

@@ -55,7 +55,6 @@ minus its residue model z, highest first (needs `scores` in `talea_calls.json`);
 - `organism`, `lineage` and `genome` (optional) describe where the protein comes from. The list shows `organism`
   under the name (keep it short: phylum and order, or the species and locus tag). The viewer header shows `lineage`
   (e.g. the GTDB ranks) and `genome` (the assembly or bin accession).
-- `alias` (optional) is an earlier name for the item; the page shows it on hover as "formerly …".
 
 `talea_calls.json` (written by `build/talea_calls.py`):
 
