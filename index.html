@@ -607,7 +607,8 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   function renderReviewHits(it) {
     const panel = $("review-hits-panel"), list = $("review-hits-list"), note = $("review-hits-note");
     const table = state.reviewHits?.items || {};
-    const setHas = !giantMode() && items().some((x) => table[x.id]);
+    // Decide on the whole set, so the annotation filter never hides the panel.
+    const setHas = !giantMode() && (state.manifest?.sets[state.set] || []).some((x) => table[x.id]);
     panel.hidden = !setHas;
     list.textContent = "";
     if (!setHas || !it) return;
