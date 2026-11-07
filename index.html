@@ -458,9 +458,13 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   // The list order for the current set: the reviewer's choice, else the set's default from sets.json (`order`).
   const orderOf = () => state.order[state.set] || SETS[state.set]?.order || "score";
   // Annotation filter for the current set: "all", "dark" (no hit in data/review_hits.json: Pfam, KOfam, DefenseFinder,
-  // TXSScan) or "known" (at least one hit).
+  // TXSScan, Foldseek) or "known" (at least one hit). A Foldseek hit counts only at E <= 1e-5; weaker ones stay listed
+  // in the hits panel but leave the protein unannotated.
   const annOf = () => state.annFilter[state.set] || "all";
-  const isAnnotated = (it) => (state.reviewHits?.items?.[it.id]?.length || 0) > 0;
+  const FOLDSEEK_ANNOTATED_E = 1e-5;
+  const countsAsAnnotation = ([source, , , , , evalue]) =>
+    source !== "Foldseek" || (evalue != null && evalue <= FOLDSEEK_ANNOTATED_E);
+  const isAnnotated = (it) => (state.reviewHits?.items?.[it.id] || []).some(countsAsAnnotation);
   let sortedCache = { key: "", list: [] };
   const items = () => {
     if (!state.manifest || giantMode()) return [];
