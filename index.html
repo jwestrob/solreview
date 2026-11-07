@@ -113,6 +113,9 @@ header.top h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0
 .list .name { font-family: var(--mono); font-size: 13px; }
 .list .len { font-family: var(--mono); font-size: 11px; color: var(--muted); grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .viewer-head .lineage { flex-basis: 100%; order: 1; margin-top: -4px; font-size: 12px; color: var(--muted); }
+.viewer-head .refold-note { flex-basis: 100%; order: 1; margin-top: -4px; font-size: 12px; color: var(--accent); }
+.viewer-head .refold-note[hidden], .viewer-head .lineage[hidden] { display: none; }
+.refold { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 3px; font-family: var(--sans, inherit); font-size: 10px; line-height: 15px; font-weight: 600; vertical-align: 1px; background: var(--accent-soft); color: var(--accent); }
 .pill { grid-row: 1 / span 2; grid-column: 2; font-size: 11px; font-weight: 500; border-radius: 10px; padding: 1px 8px; border: 1px solid var(--line); color: var(--muted); }
 .pill.yes { background: var(--yes-soft); color: var(--yes); border-color: transparent; }
 .pill.no { background: var(--no-soft); color: var(--no); border-color: transparent; }
@@ -297,6 +300,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       <div class="viewer-head">
         <h2 id="current-name">Loading proteins…</h2>
         <span class="lineage" id="current-lineage" hidden></span>
+        <span class="refold-note" id="current-refold" hidden></span>
         <span class="readout" id="readout">Hover a residue for its number and pLDDT</span>
         <div class="viewer-tools">
           <div class="scales" role="group" aria-label="Model window length (aa)" id="scales" data-giant-only></div>
@@ -560,6 +564,13 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       const shown = v || other?.[1];
       button.innerHTML = `<span class="name"></span><span class="pill ${shown || ""}${other ? " other" : ""}"></span><span class="len"></span>`;
       button.querySelector(".name").textContent = it.file.replace(".pdb", "");
+      if (it.refolded) {
+        const tag = document.createElement("span");
+        tag.className = "refold";
+        tag.textContent = "Refolded";
+        tag.title = `Focused fold: pLDDT ${it.refolded.plddt.toFixed(1)} (bench model ${it.refolded.was_plddt.toFixed(1)}), pTM ${it.refolded.ptm.toFixed(2)}`;
+        button.querySelector(".name").append(tag);
+      }
       button.querySelector(".pill").textContent = pillText(shown);
       if (other) button.querySelector(".pill").title = `${other[0]}'s call`;
       button.querySelector(".len").textContent = byGap
@@ -596,6 +607,10 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       ? [it.lineage, it.genome].filter(Boolean).join(" · ") : "";
     $("current-lineage").textContent = lineage;
     $("current-lineage").hidden = !lineage;
+    const refold = !giantMode() && it?.refolded;
+    $("current-refold").textContent = refold
+      ? `Refolded model · pLDDT ${refold.plddt.toFixed(1)} (bench model ${refold.was_plddt.toFixed(1)}) · pTM ${refold.ptm.toFixed(2)} · ${refold.method}` : "";
+    $("current-refold").hidden = !refold;
     for (const b of $("solenoid").querySelectorAll("button")) b.setAttribute("aria-pressed", String(label.solenoid === b.dataset.v));
     for (const b of $("fold").querySelectorAll("button")) b.setAttribute("aria-pressed", String(label.fold === b.dataset.v));
     if (document.activeElement !== $("residues")) $("residues").value = label.residues || "";
@@ -2405,8 +2420,18 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       fetch("data/review_hits.json").then((r) => (r.ok ? r.json() : null)).then((h) => {
         if (h?.items) { state.reviewHits = h; if (state.manifest && !giantMode()) renderList(); renderForm(); }
       }).catch(() => {});
+      // Models improved by focused folding (data/refolded.json): they replace the bench model wherever the accession
+      // appears, and the list and header mark them.
+      const refoldedRes = fetch("data/refolded.json").then((r) => (r.ok ? r.json() : null)).catch(() => null);
       const res = await fetch("data/manifest.json");
       state.manifest = res.ok ? await res.json() : { sets: {} };
+      const refolded = (await refoldedRes)?.items || {};
+      for (const list of Object.values(state.manifest.sets)) {
+        for (const it of list) {
+          const r = refolded[it.file.replace(".pdb", "")];
+          if (r?.pdb) { it.benchPdb = it.pdb; it.pdb = r.pdb; it.refolded = r; }
+        }
+      }
       try {
         const callsRes = await fetch("data/talea_calls.json");
         if (callsRes.ok) { const payload = await callsRes.json(); state.calls = payload.calls || {}; state.taleaVersion = payload.talea_version || ""; }

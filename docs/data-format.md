@@ -189,7 +189,21 @@ Items are sorted by score, highest first.
 
 Each hit is `[source, start, end, family, description, E-value]`, with start and end 0-based end-exclusive along the
 modelled sequence, or both null for a whole-protein call. The sidebar lists the hits for the model on screen, as
-observed annotations. Written by `build/review_hits.py` from a TSV.
+observed annotations. Written by `build/review_hits.py` from a TSV. Clicking a hit with a span marks it on the
+structure. A Foldseek hit counts toward the Annotated filter only at E ≤ 1e-5.
+
+### refolded.json (optional)
+
+```json
+{"about": "one line",
+ "items": {"MFA6420396.1": {"pdb": "data/refolded/MFA6420396.1.pdb.gz", "plddt": 86.7, "ptm": 0.74,
+                            "was_plddt": 74.0, "method": "how the model was made", "source": "where it came from"}}}
+```
+
+Models improved by focused folding, keyed by accession (the item's `file` without `.pdb`). Wherever that accession
+appears in a review set, the page shows this model in place of the set's own, which stays in the set folder. The list
+row carries a Refolded tag, and the header gives pLDDT, pTM, the bench model's pLDDT and the method. The model must
+keep the bench model's residue numbering (1 to N over the same sequence), so Talea's calls and the hits line up.
 
 ### hits.json (optional)
 
