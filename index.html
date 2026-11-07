@@ -441,7 +441,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     set(key, value) { try { localStorage.setItem(key, value); } catch { /* storage unavailable */ } },
   };
 
-  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, others: {}, db: null, dbReady: false, colorMode: "plddt", order: {}, annFilter: {}, reviewHits: null };
+  const state = { manifest: null, calls: {}, taleaVersion: "", set: "", index: 0, labels: {}, others: {}, db: null, dbReady: false, colorMode: "plddt", order: {}, annFilter: {}, reviewHits: null, reviewMark: null };
   // Attention images are two panels of min(L, 480) px with an 8 px gap (build/prepare_review_data.py).
   const PANEL = 480, GAP = 8;
   let viewer = null, spinning = false, picking = null, loadToken = 0;
@@ -603,7 +603,10 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   }
 
   // Annotation hits for a review-set model (data/review_hits.json): observed Pfam domains and other annotations,
-  // listed by position, whole-protein calls last. The panel shows only for sets that have hits.
+  // listed by position, whole-protein calls last. The panel shows only for sets that have hits. Clicking a hit with a
+  // span marks that span on the structure in the hit's colour; clicking it again, or a colour mode, clears it.
+  const HIT_COLOR_VAR = { kofam: "--hit-cdd", kegg: "--hit-cdd", defensefinder: "--hit-foldseek",
+    defensefindersystem: "--hit-foldseek", txsscan: "--hit-foldseek" };
   function renderReviewHits(it) {
     const panel = $("review-hits-panel"), list = $("review-hits-list"), note = $("review-hits-note");
     const table = state.reviewHits?.items || {};
@@ -613,21 +616,40 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     list.textContent = "";
     if (!setHas || !it) return;
     const hits = [...(table[it.id] || [])].sort((a, b) => (a[1] ?? 1e9) - (b[1] ?? 1e9));
+    let clickable = 0;
     for (const [source, start, end, family, description, evalue] of hits) {
       const li = document.createElement("li");
-      const row = document.createElement("div");
-      row.className = "static";
+      const hasSpan = start != null;
+      const row = document.createElement(hasSpan ? "button" : "div");
+      const cls = source.toLowerCase().replace(/[^a-z]/g, "");
       row.title = description ? `${family}: ${description}` : family;
       row.innerHTML = '<span class="tag"></span><span class="name"></span><span class="sub"></span>';
       row.children[0].textContent = source;
-      row.children[0].className = `tag ${source.toLowerCase().replace(/[^a-z]/g, "")}`;
+      row.children[0].className = `tag ${cls}`;
       row.children[1].textContent = description ? `${family} · ${description}` : family;
-      const span = start == null ? "whole protein" : `${resiOf(it, start + 1)}–${resiOf(it, end)}`;
+      const span = hasSpan ? `${resiOf(it, start + 1)}–${resiOf(it, end)}` : "whole protein";
       row.children[2].textContent = [span, evalue != null ? `E ${fmtE(evalue)}` : ""].filter(Boolean).join(" · ");
+      if (hasSpan) {
+        clickable++;
+        row.type = "button";
+        const key = `${source}|${start}|${end}|${family}`;
+        const marked = state.reviewMark?.id === it.id && state.reviewMark.key === key;
+        row.setAttribute("aria-pressed", String(marked));
+        row.addEventListener("click", () => {
+          state.reviewMark = marked ? null : { id: it.id, key, lo: resiOf(it, start + 1), hi: resiOf(it, end),
+            color: cssVar(HIT_COLOR_VAR[cls] || `--hit-${cls}`) || cssVar("--hit-pfam") };
+          applyColors(current());
+          renderReviewHits(it);
+        });
+      } else {
+        row.className = "static";
+      }
       li.append(row);
       list.append(li);
     }
-    note.textContent = hits.length ? (state.reviewHits.sources || "") : "No annotation hit for this protein.";
+    const sources = state.reviewHits.sources || "";
+    note.textContent = !hits.length ? "No annotation hit for this protein."
+      : clickable ? `Click a hit to mark its span on the structure. ${sources}` : sources;
   }
 
   function renderStatus(it) {
@@ -946,12 +968,17 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     if (!viewer || !it) return;
     const useTalea = state.colorMode === "talea" && (it.giant || callVisible(it));
     const mark = it.giant && giant.highlight?.model === it.id ? giant.highlight : null;
+    const reviewMark = !it.giant && state.reviewMark?.id === it.id ? state.reviewMark : null;
     if (mark) {
       // A hit picked in the sidebar: its span in the hit's colour, the rest of the model grey.
       viewer.setStyle({}, { cartoon: { colorfunc: (atom) => {
         const p = it.start + atom.resi - 1;
         return p >= mark.start && p < mark.end ? mark.color : OUTSIDE_RES;
       } } });
+    } else if (reviewMark) {
+      // Same for a review-set model; lo and hi are model residue numbers.
+      viewer.setStyle({}, { cartoon: { colorfunc: (atom) =>
+        atom.resi >= reviewMark.lo && atom.resi <= reviewMark.hi ? reviewMark.color : OUTSIDE_RES } });
     } else if (useTalea) {
       const colors = it.giant ? giantTaleaColors(it) : taleaColors(it);
       viewer.setStyle({}, { cartoon: { colorfunc: (atom) => colors.get(atom.resi) ?? OUTSIDE_RES } });
@@ -2311,7 +2338,11 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     $("blind").addEventListener("change", () => { store.set("blind", $("blind").checked ? "1" : "0"); renderList(); renderForm(); applyColors(current()); });
     $("overlay").addEventListener("change", () => { store.set("overlay", $("overlay").checked ? "1" : "0"); renderAttention(); });
     state.colorMode = store.get("color-mode") === "talea" ? "talea" : "plddt";
-    const setMode = (mode) => { state.colorMode = mode; store.set("color-mode", mode); applyColors(current()); };
+    const setMode = (mode) => {
+      state.colorMode = mode; store.set("color-mode", mode);
+      if (state.reviewMark) { state.reviewMark = null; if (!giantMode()) renderReviewHits(current()); }
+      applyColors(current());
+    };
     $("color-plddt").addEventListener("click", () => setMode("plddt"));
     $("color-talea").addEventListener("click", () => setMode("talea"));
     $("copy-tsv").addEventListener("click", () => {
