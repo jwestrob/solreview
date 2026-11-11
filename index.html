@@ -252,6 +252,14 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
 .step .btn { padding: 4px 9px; font-size: 13px; }
 .att-canvas { width: 100%; height: auto; display: block; border-radius: 4px; background: #000004; }
 .list .sub { font-family: var(--mono); font-size: 11px; color: var(--muted); grid-column: 1; }
+/* Flagged tab: the reviewer's note under each row (two lines at most), and a heading above the giant windows. */
+.list .note { grid-column: 1 / -1; font-size: 11.5px; line-height: 1.3; color: var(--fg); opacity: 0.82; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.list li button.flagrow { grid-template-columns: minmax(0, 1fr) auto; }
+.list .flagrow .name { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.list .flagrow .pill { grid-row: 2; grid-column: 2; }
+.list .flagrow .len { grid-row: 2; grid-column: 1; }
+.list .group { padding: 10px 8px 3px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); margin-top: 4px; }
+.list .empty { padding: 10px 8px; font-size: 12px; color: var(--muted); }
 .hint.inline { margin: 0; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -291,6 +299,14 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
         <button type="button" id="ann-known" aria-pressed="false">Annotated</button>
       </div>
       <p id="review-caption"></p>
+    </div>
+    <div class="list-head" id="flag-head" data-review-only hidden>
+      <div class="mode" role="group" aria-label="Which of your labelled proteins to list">
+        <button type="button" id="flag-flagged" aria-pressed="true" title="Your note contains the word flag">Flagged</button>
+        <button type="button" id="flag-notes" aria-pressed="false" title="Every protein you wrote a note on">With notes</button>
+        <button type="button" id="flag-all" aria-pressed="false" title="Every protein with a call, fold, residues or note">All labelled</button>
+      </div>
+      <p id="flag-caption"></p>
     </div>
     <ol id="list"></ol>
   </nav>
@@ -453,12 +469,37 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   const saving = new Map();
 
   const giantMode = () => state.set === "giants";
+  // "Flagged" tab: a view over the reviewer's own labels from every review tab, newest label first. Each row is the
+  // protein's entry in its own tab, so a call or note changed here saves under the same label id. A protein is flagged
+  // when its note contains the word "flag" ("FLAG!", "flag for refolding"); "flagged", as in "Talea-flagged residues",
+  // does not count. The list is rebuilt when the tab opens or its filter changes, so rows stay put while notes are edited.
+  const FLAG_SET = "flagged";
+  const FLAG_WORD = /\bflag\b/i;
+  const hasNote = (l) => Boolean((l.notes || "").trim());
+  const FLAG_FILTERS = {
+    flagged: (l) => FLAG_WORD.test(l.notes || ""),
+    notes: hasNote,
+    all: (l) => Boolean(l.solenoid || l.fold || l.residues || hasNote(l)),
+  };
+  const flag = { filter: "flagged", list: [], giants: [], ready: false, restoreId: null };
+  const flagMode = () => state.set === FLAG_SET;
+  const setList = (id) => (id === FLAG_SET ? flag.list : state.manifest?.sets[id]) || [];
+  function buildFlagged() {
+    const keep = FLAG_FILTERS[flag.filter];
+    const newest = (a, b) => ((a.updatedAt || "") < (b.updatedAt || "") ? 1 : (a.updatedAt || "") > (b.updatedAt || "") ? -1 : 0);
+    const out = [];
+    for (const list of Object.values(state.manifest?.sets || {})) {
+      for (const it of list) { const l = state.labels[it.id]; if (l && keep(l)) out.push(it); }
+    }
+    flag.list = out.sort((a, b) => newest(state.labels[a.id], state.labels[b.id]));
+    flag.giants = giant.index ? giantLabels().filter(([, l]) => keep(l)).sort((a, b) => newest(a[1], b[1])) : [];
+  }
   // A review set lists its models in manifest order (by Talea score for ranked sets). Sets whose calls carry Talea's
   // two model scores can also be listed by the whole-protein model's z minus the residue model's z, highest first:
   // the pattern of the curated tubes, which the whole-protein model sees and the residue model mostly misses.
   const scoresOf = (it) => state.calls[it.id]?.scores;
   const zGap = (it) => { const s = scoresOf(it); return s ? s.whole_protein_z - s.residue_z : -Infinity; };
-  const setHasScores = () => (state.manifest?.sets[state.set] || []).some((it) => scoresOf(it));
+  const setHasScores = () => setList(state.set).some((it) => scoresOf(it));
   // The list order for the current set: the reviewer's choice, else the set's default from sets.json (`order`).
   const orderOf = () => state.order[state.set] || SETS[state.set]?.order || "score";
   // Annotation filter for the current set: "all", "dark" (no hit in data/review_hits.json: Pfam, KOfam, DefenseFinder,
@@ -472,6 +513,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
   let sortedCache = { key: "", list: [] };
   const items = () => {
     if (!state.manifest || giantMode()) return [];
+    if (flagMode()) return flag.list;
     const list = state.manifest.sets[state.set] || [];
     const order = orderOf(), ann = annOf();
     const byGap = order === "gap" && setHasScores();
@@ -506,6 +548,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       button.firstChild.textContent = info.title;
       button.lastChild.textContent = id === "giants"
         ? `${giant.index.proteins.length} · ${giantLabels().filter(([, l]) => l.solenoid).length} calls`
+        : id === FLAG_SET ? String(Object.values(state.labels).filter(FLAG_FILTERS.flagged).length)
         : `${done}/${list.length}`;
       button.addEventListener("click", () => selectSet(id));
       wrap.append(button);
@@ -536,9 +579,11 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     const ol = $("list");
     ol.textContent = "";
     ol.dataset.view = "review";
+    $("review-head").hidden = flagMode();
+    $("flag-head").hidden = !flagMode();
+    if (flagMode()) { renderFlaggedList(ol); return; }
     const scored = setHasScores(), byGap = scored && orderOf() === "gap", bySize = orderOf() === "size";
     const ann = annOf();
-    $("review-head").hidden = false;
     $("order-gap").hidden = !scored;
     const [orderName, orderCaption] = SETS[state.set]?.manifestOrder || ["By score", "Highest Talea score first"];
     $("order-score").textContent = orderName;
@@ -548,7 +593,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     for (const [id, mode] of [["ann-all", "all"], ["ann-dark", "dark"], ["ann-known", "known"]]) {
       $(id).setAttribute("aria-pressed", String(ann === mode));
     }
-    const shown = items().length, total = (state.manifest?.sets[state.set] || []).length;
+    const shown = items().length, total = setList(state.set).length;
     const filterNote = ann === "all" ? ""
       : ` · ${shown.toLocaleString()} of ${total.toLocaleString()} ${ann === "dark" ? "without" : "with"} annotation hits`;
     $("review-caption").textContent = (byGap
@@ -588,6 +633,70 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     if (active) revealInList(active);
   }
 
+  // The Flagged tab's list: one row per labelled protein with the tab it comes from and the note, then the giant
+  // model windows that pass the same filter. A giant row opens that window on the Giants tab.
+  function renderFlaggedList(ol) {
+    for (const [id, mode] of [["flag-flagged", "flagged"], ["flag-notes", "notes"], ["flag-all", "all"]]) {
+      $(id).setAttribute("aria-pressed", String(flag.filter === mode));
+    }
+    const n = flag.list.length, g = flag.giants.length;
+    const what = { flagged: "flagged (your note says flag)", notes: "with notes", all: "labelled" }[flag.filter];
+    $("flag-caption").textContent = `${n.toLocaleString()} ${what}${g ? ` · ${g} giant window${g === 1 ? "" : "s"} below` : ""} · newest label first`;
+    flag.list.forEach((it, i) => {
+      const label = state.labels[it.id] || {};
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "flagrow";
+      button.setAttribute("aria-current", String(i === state.index));
+      button.innerHTML = `<span class="name"></span><span class="pill ${label.solenoid || ""}"></span><span class="len"></span>`;
+      button.querySelector(".name").textContent = it.file.replace(".pdb", "");
+      button.querySelector(".pill").textContent = pillText(label.solenoid);
+      button.querySelector(".len").textContent = `${it.length.toLocaleString()} aa · ${SETS[it.set]?.title || it.set}`;
+      if (hasNote(label)) {
+        const note = document.createElement("span");
+        note.className = "note";
+        note.textContent = label.notes.trim();
+        button.append(note);
+      }
+      button.title = [label.notes, FOLD_NAME[label.fold], it.organism, it.lineage].filter(Boolean).join(" · ");
+      button.addEventListener("click", () => select(i));
+      li.append(button);
+      ol.append(li);
+    });
+    if (!n) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = flag.ready || !state.db ? "No protein here yet. Write the word flag in a protein's notes to flag it." : "Loading your labels…";
+      ol.append(li);
+    }
+    if (g) {
+      const head = document.createElement("li");
+      head.className = "group";
+      head.textContent = "Giant model windows (open on the Giants tab)";
+      ol.append(head);
+      for (const [, label] of flag.giants) {
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button"; button.className = "flagrow";
+        button.innerHTML = `<span class="name"></span><span class="pill ${label.solenoid || ""}"></span><span class="len">Giants</span>`;
+        button.querySelector(".name").textContent = label.file || `${label.protein} · ${label.start}–${label.end}`;
+        button.querySelector(".pill").textContent = pillText(label.solenoid);
+        if (hasNote(label)) {
+          const note = document.createElement("span");
+          note.className = "note";
+          note.textContent = label.notes.trim();
+          button.append(note);
+        }
+        button.title = label.notes || "";
+        button.addEventListener("click", () => openGiantLabel(label));
+        li.append(button);
+        ol.append(li);
+      }
+    }
+    const active = ol.querySelector('[aria-current="true"]');
+    if (active) revealInList(active);
+  }
+
   // Scrolls the protein list alone to the active row, so a call saved at the foot of the page leaves the page where it is.
   function revealInList(row) {
     const box = row.closest(".list");
@@ -602,7 +711,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     const label = labelOf(it) || {};
     $("current-name").textContent = giantMode()
       ? (it ? it.file : giantEmptyName())
-      : (it ? `${it.file.replace(".pdb", "")} · ${it.length.toLocaleString()} aa` : "No proteins");
+      : (it ? `${it.file.replace(".pdb", "")} · ${it.length.toLocaleString()} aa${flagMode() ? ` · ${SETS[it.set]?.title || it.set}` : ""}` : "No proteins");
     const lineage = !giantMode() && it && (it.lineage || it.genome)
       ? [it.lineage, it.genome].filter(Boolean).join(" · ") : "";
     $("current-lineage").textContent = lineage;
@@ -630,7 +739,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     const panel = $("review-hits-panel"), list = $("review-hits-list"), note = $("review-hits-note");
     const table = state.reviewHits?.items || {};
     // Decide on the whole set, so the annotation filter never hides the panel.
-    const setHas = !giantMode() && (state.manifest?.sets[state.set] || []).some((x) => table[x.id]);
+    const setHas = !giantMode() && setList(state.set).some((x) => table[x.id]);
     panel.hidden = !setHas;
     list.textContent = "";
     if (!setHas || !it) return;
@@ -1109,7 +1218,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     try {
       const db = (await fileDb()) || (window.claude?.use ? await window.claude.use("db") : null);
       state.dbReady = true;
-      if (!db) { showNotice("Labels are kept in this browser only in this view. Start the bench with serve.py to save them to a file, or open it on claude.ai while signed in."); loadLocalLabels(); renderAll(); return; }
+      if (!db) { showNotice("Labels are kept in this browser only in this view. Start the bench with serve.py to save them to a file, or open it on claude.ai while signed in."); loadLocalLabels(); const f = flaggedOnLabels(); renderAll(); if (f) showFlaggedStructure(); return; }
       state.db = db;
       state.others = db.others || {};
       db.collection("labels").onSnapshot((snap) => {
@@ -1118,15 +1227,28 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
           if (saving.get(id)?.busy) continue;
           state.labels[id] = doc.data();
         }
+        const firstFlagged = flaggedOnLabels();
         renderSets(); renderProgress(); renderList(); renderForm();
+        if (firstFlagged) showFlaggedStructure();
         if (giantMode()) drawTrack();
       }, (e) => { showNotice(`Saved labels stopped updating (${e.code}). Reload the page to reconnect.`); });
       renderStatus(current());
     } catch (e) {
       state.dbReady = true;
       showNotice("Saved labels are unavailable in this view; new labels stay in this browser.");
-      loadLocalLabels(); renderAll();
+      loadLocalLabels(); const f = flaggedOnLabels(); renderAll(); if (f) showFlaggedStructure();
     }
+  }
+  // The Flagged tab's list comes from the labels: build it once they arrive (a page reloaded on that tab).
+  function flaggedOnLabels() {
+    const first = flagMode() && !flag.ready;
+    if (first) {
+      buildFlagged();
+      const k = flag.restoreId ? flag.list.findIndex((x) => x.id === flag.restoreId) : -1;
+      state.index = k >= 0 ? k : Math.max(0, Math.min(flag.list.length - 1, state.index));
+    }
+    flag.ready = true;
+    return first;
   }
   function loadLocalLabels() {
     for (const it of Object.values(state.manifest?.sets || {}).flat()) {
@@ -1163,7 +1285,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     const list = items();
     if (!list.length) return;
     state.index = Math.max(0, Math.min(list.length - 1, i));
-    store.set("position", JSON.stringify({ set: state.set, index: state.index }));
+    store.set("position", JSON.stringify({ set: state.set, index: state.index, ...(flagMode() ? { id: list[state.index].id } : {}) }));
     picking = null; $("pick").setAttribute("aria-pressed", "false");
     renderList(); renderForm(); showStructure();
   }
@@ -1178,10 +1300,47 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
       selectGiant(found >= 0 ? found : 0, found >= 0 ? saved : null);
       return;
     }
+    if (id === FLAG_SET) {
+      if (!state.manifest) return;
+      state.set = id;
+      state.index = 0;
+      buildFlagged();
+      store.set("position", JSON.stringify({ set: id, index: 0 }));
+      renderAll(); showFlaggedStructure();
+      return;
+    }
     if (!state.manifest?.sets[id]) return;
     state.set = id;
     state.index = 0;
     renderAll(); showStructure();
+  }
+  // The Flagged tab can be empty (no note says flag yet): say so in the viewer in place of the last tab's model.
+  function showFlaggedStructure() {
+    if (current()) { showStructure(); return; }
+    loadToken++;
+    if (viewer) { viewer.clear(); viewer.render(); }
+    $("viewer-msg").hidden = false;
+    $("viewer-msg").textContent = "No protein in this list.";
+  }
+  function setFlagFilter(mode) {
+    const it = current();
+    flag.filter = mode;
+    store.set("flag-filter", mode);
+    buildFlagged();
+    const i = it ? flag.list.findIndex((x) => x.id === it.id) : -1;
+    state.index = Math.max(0, i);
+    store.set("position", JSON.stringify({ set: FLAG_SET, index: state.index, id: flag.list[state.index]?.id }));
+    renderAll();
+    if (i < 0) showFlaggedStructure();
+  }
+  // Opens a labelled giant model window on the Giants tab (a giant label stores its protein, scale and 1-based start).
+  function openGiantLabel(label) {
+    const i = giant.index ? giant.index.proteins.findIndex((p) => p.id === label.protein) : -1;
+    if (i < 0) return;
+    state.set = "giants";
+    store.set("position", JSON.stringify({ set: "giants", index: 0 }));
+    renderAll();
+    selectGiant(i, { protein: label.protein, scheme: label.scheme, start: label.start - 1 });
   }
   function nextUnlabeled() {
     const list = items();
@@ -2341,6 +2500,9 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     $("prev").addEventListener("click", () => select(state.index - 1));
     $("next").addEventListener("click", () => select(state.index + 1));
     $("next-unlabeled").addEventListener("click", nextUnlabeled);
+    $("flag-flagged").addEventListener("click", () => setFlagFilter("flagged"));
+    $("flag-notes").addEventListener("click", () => setFlagFilter("notes"));
+    $("flag-all").addEventListener("click", () => setFlagFilter("all"));
     $("reset-view").addEventListener("click", () => { if (viewer) { viewer.zoomTo(); viewer.render(); } });
     $("spin").addEventListener("click", () => {
       spinning = !spinning;
@@ -2445,6 +2607,15 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
                      // Optional names for the manifest order, e.g. ["By family size", "Largest family first"].
                      manifestOrder: sets[id]?.manifest_order || ["By score", "Highest Talea score first"] };
       }
+      // The Flagged tab is a view over the reviewer's labels in the review tabs above, so it needs a manifest.
+      if (Object.keys(state.manifest.sets).length) {
+        SETS[FLAG_SET] = { title: "Flagged", order: "score", manifestOrder: ["Newest first", "Newest label first"],
+          about: "Proteins you flagged, from every tab: the ones whose note contains the word flag. The buttons above "
+            + "the list widen it to every protein with a note, or to everything you have labelled. A call or note "
+            + "changed here is saved to the protein's own tab." };
+        const savedFilter = store.get("flag-filter");
+        if (FLAG_FILTERS[savedFilter]) flag.filter = savedFilter;
+      }
       if (index?.proteins?.length) {
         index.proteins.forEach((p) => { p.key = p.bundle.split("/").pop().replace(/\.[a-z]+$/, ""); });
         index.proteins.sort((a, b) => b.length - a.length);
@@ -2480,7 +2651,7 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     let position = saved && saved.set ? saved : null;
     if (!position) { try { position = JSON.parse(store.get("position") || "null"); } catch { position = null; } }
     const hash = (location.hash || "").slice(1);
-    if (state.manifest.sets[hash] || (hash === "giants" && giant.index)) position = { set: hash, index: 0 };
+    if (state.manifest.sets[hash] || (hash === "giants" && giant.index) || (hash === FLAG_SET && SETS[FLAG_SET])) position = { set: hash, index: 0 };
     const first = Object.keys(state.manifest.sets)[0];
     if (!first && !giant.index) {
       $("viewer-msg").textContent = "No review data here: data/ holds neither manifest.json nor giants/index.json (see docs/data-format.md).";
@@ -2489,7 +2660,8 @@ body[data-mode="giants"] [data-review-only] { display: none !important; }
     if (!first) position = { set: "giants", index: 0 };
     connectDb();
     if (position?.set === "giants" && giant.index) { selectSet("giants"); return; }
-    if (position && state.manifest.sets[position.set]) { state.set = position.set; state.index = Math.min(position.index || 0, state.manifest.sets[position.set].length - 1); }
+    if (position?.set === FLAG_SET && SETS[FLAG_SET]) { state.set = FLAG_SET; state.index = position.index || 0; flag.restoreId = position.id || null; }
+    else if (position && state.manifest.sets[position.set]) { state.set = position.set; state.index = Math.min(position.index || 0, state.manifest.sets[position.set].length - 1); }
     else state.set = first;
     renderAll();
     showStructure();

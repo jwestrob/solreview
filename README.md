@@ -16,6 +16,10 @@ unsure), a fold class, the repeat residues and notes.
   - the folded models at every window size;
   - the Pfam, CDD and Foldseek hits for the model on screen;
   - a list of 2,000-aa models ranked by Talea window score, highest first.
+- **Flagged** lists your own labelled proteins from every review set, newest label first, with each note under its
+  row. A protein is flagged when its note contains the word *flag* ("FLAG!", "flag for refolding"). Two more buttons
+  list every protein with a note, or everything you have labelled; labelled giant windows follow the list and open on
+  the Giants tab. A call or note changed there saves to the protein's own set.
 
 ## Run it
 
